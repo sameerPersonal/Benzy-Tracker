@@ -1,25 +1,63 @@
-import { getDB, saveDB } from './mockData';
+import { supabase } from '../api/supabaseClient';
 import type { AssetEntry } from './mockData';
 
 export const assetRegistryService = {
   getAll: async (): Promise<AssetEntry[]> => {
-    return getDB().assetRegistry;
+    const { data, error } = await supabase
+      .from('asset_registry')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching asset registry:', error);
+      return [];
+    }
+
+    return (data || []).map((row) => ({
+      id: row.id,
+      region: row.region,
+      environment: row.environment as AssetEntry['environment'],
+      assetType: row.asset_type as AssetEntry['assetType'],
+      ipAddress: row.ip_address,
+      remarks: row.remarks || '',
+    }));
   },
 
   addEntry: async (entry: Omit<AssetEntry, 'id'>): Promise<AssetEntry> => {
-    const db = getDB();
-    const newEntry: AssetEntry = {
-      ...entry,
-      id: Math.random().toString(36).substr(2, 9),
+    const { data, error } = await supabase
+      .from('asset_registry')
+      .insert([{
+        region: entry.region,
+        environment: entry.environment,
+        asset_type: entry.assetType,
+        ip_address: entry.ipAddress,
+        remarks: entry.remarks,
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to add asset entry: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      region: data.region,
+      environment: data.environment as AssetEntry['environment'],
+      assetType: data.asset_type as AssetEntry['assetType'],
+      ipAddress: data.ip_address,
+      remarks: data.remarks || '',
     };
-    db.assetRegistry.push(newEntry);
-    saveDB(db);
-    return newEntry;
   },
 
   deleteEntry: async (id: string): Promise<void> => {
-    const db = getDB();
-    db.assetRegistry = db.assetRegistry.filter(item => item.id !== id);
-    saveDB(db);
+    const { error } = await supabase
+      .from('asset_registry')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to delete asset entry: ${error.message}`);
+    }
   }
 };

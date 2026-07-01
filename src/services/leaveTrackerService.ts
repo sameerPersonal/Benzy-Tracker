@@ -1,25 +1,60 @@
-import { getDB, saveDB } from './mockData';
+import { supabase } from '../api/supabaseClient';
 import type { LeaveEntry } from './mockData';
 
 export const leaveTrackerService = {
   getAll: async (): Promise<LeaveEntry[]> => {
-    return getDB().leaveTracker;
+    const { data, error } = await supabase
+      .from('leave_tracker')
+      .select('*')
+      .order('start_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching leave tracker:', error);
+      return [];
+    }
+
+    return (data || []).map((row) => ({
+      id: row.id,
+      resource: row.resource,
+      leaveType: row.leave_type as LeaveEntry['leaveType'],
+      startDate: row.start_date,
+      endDate: row.end_date,
+    }));
   },
 
   addEntry: async (entry: Omit<LeaveEntry, 'id'>): Promise<LeaveEntry> => {
-    const db = getDB();
-    const newEntry: LeaveEntry = {
-      ...entry,
-      id: Math.random().toString(36).substr(2, 9),
+    const { data, error } = await supabase
+      .from('leave_tracker')
+      .insert([{
+        resource: entry.resource,
+        leave_type: entry.leaveType,
+        start_date: entry.startDate,
+        end_date: entry.endDate,
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to add leave entry: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      resource: data.resource,
+      leaveType: data.leave_type as LeaveEntry['leaveType'],
+      startDate: data.start_date,
+      endDate: data.end_date,
     };
-    db.leaveTracker.push(newEntry);
-    saveDB(db);
-    return newEntry;
   },
 
   deleteEntry: async (id: string): Promise<void> => {
-    const db = getDB();
-    db.leaveTracker = db.leaveTracker.filter(item => item.id !== id);
-    saveDB(db);
+    const { error } = await supabase
+      .from('leave_tracker')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to delete leave entry: ${error.message}`);
+    }
   }
 };

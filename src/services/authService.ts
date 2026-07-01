@@ -1,41 +1,68 @@
-import { getDB, saveDB } from './mockData';
+import { supabase } from '../api/supabaseClient';
 import type { User } from './mockData';
+
+const SESSION_KEY = 'ops_portal_user';
 
 export const authService = {
   getCurrentUser: (): User | null => {
-    return getDB().currentUser;
+    const userJson = localStorage.getItem(SESSION_KEY);
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson) as User;
+    } catch {
+      return null;
+    }
   },
 
   login: async (email: string, _password?: string): Promise<User> => {
-    const db = getDB();
-    const user = db.users.find(u => u.email === email);
-    if (!user) {
-      throw new Error('User not found. Use admin@ops.portal to log in or Sign Up.');
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Authentication error: ${error.message}`);
     }
-    db.currentUser = user;
-    saveDB(db);
-    return user;
+    if (!data) {
+      throw new Error('User not found. Use admin@ops.portal to log in or register.');
+    }
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    return data as User;
   },
 
   signup: async (email: string, name: string): Promise<User> => {
-    const db = getDB();
-    if (db.users.some(u => u.email === email)) {
+    // Check if user already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (checkError) {
+      throw new Error(`Lookup failed: ${checkError.message}`);
+    }
+    if (existingUser) {
       throw new Error('User already exists');
     }
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
-      email,
-      name
-    };
-    db.users.push(newUser);
-    db.currentUser = newUser;
-    saveDB(db);
-    return newUser;
+
+    const id = Math.random().toString(36).substr(2, 9);
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{ id, email, name }])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Registration failed: ${error.message}`);
+    }
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    return data as User;
   },
 
   logout: async (): Promise<void> => {
-    const db = getDB();
-    db.currentUser = null;
-    saveDB(db);
+    localStorage.removeItem(SESSION_KEY);
   }
 };
