@@ -6,7 +6,7 @@ export const deliveryTrackerService = {
     const { data, error } = await supabase
       .from('delivery_tracker')
       .select('*')
-      .order('expected_delivery_date', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching delivery tracker:', error);
@@ -16,10 +16,10 @@ export const deliveryTrackerService = {
     return (data || []).map((row) => ({
       id: row.id,
       jiraId: row.jira_id,
+      taskName: row.task_name || '',
       resource: row.resource,
       status: row.status as DeliveryItem['status'],
-      expectedDeliveryDate: row.expected_delivery_date,
-      liveDate: row.live_date || undefined,
+      liveUpdates: row.live_updates || {},
     }));
   },
 
@@ -28,10 +28,10 @@ export const deliveryTrackerService = {
       .from('delivery_tracker')
       .insert([{
         jira_id: entry.jiraId,
+        task_name: entry.taskName,
         resource: entry.resource,
         status: entry.status,
-        expected_delivery_date: entry.expectedDeliveryDate,
-        live_date: entry.liveDate || null,
+        live_updates: entry.liveUpdates || {},
       }])
       .select()
       .single();
@@ -43,21 +43,18 @@ export const deliveryTrackerService = {
     return {
       id: data.id,
       jiraId: data.jira_id,
+      taskName: data.task_name || '',
       resource: data.resource,
       status: data.status as DeliveryItem['status'],
-      expectedDeliveryDate: data.expected_delivery_date,
-      liveDate: data.live_date || undefined,
+      liveUpdates: data.live_updates || {},
     };
   },
 
-  updateStatus: async (id: string, status: DeliveryItem['status'], liveDate?: string): Promise<DeliveryItem> => {
-    const computedLiveDate = liveDate || (status === 'Completed' ? new Date().toISOString().split('T')[0] : null);
-
+  updateStatus: async (id: string, status: DeliveryItem['status']): Promise<DeliveryItem> => {
     const { data, error } = await supabase
       .from('delivery_tracker')
       .update({
         status,
-        live_date: computedLiveDate,
       })
       .eq('id', id)
       .select()
@@ -70,10 +67,38 @@ export const deliveryTrackerService = {
     return {
       id: data.id,
       jiraId: data.jira_id,
+      taskName: data.task_name || '',
       resource: data.resource,
       status: data.status as DeliveryItem['status'],
-      expectedDeliveryDate: data.expected_delivery_date,
-      liveDate: data.live_date || undefined,
+      liveUpdates: data.live_updates || {},
+    };
+  },
+
+  updateEntry: async (id: string, entry: Omit<DeliveryItem, 'id'>): Promise<DeliveryItem> => {
+    const { data, error } = await supabase
+      .from('delivery_tracker')
+      .update({
+        jira_id: entry.jiraId,
+        task_name: entry.taskName,
+        resource: entry.resource,
+        status: entry.status,
+        live_updates: entry.liveUpdates || {},
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update deliverable: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      jiraId: data.jira_id,
+      taskName: data.task_name || '',
+      resource: data.resource,
+      status: data.status as DeliveryItem['status'],
+      liveUpdates: data.live_updates || {},
     };
   },
 

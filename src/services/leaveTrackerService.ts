@@ -47,6 +47,32 @@ export const leaveTrackerService = {
     };
   },
 
+  updateEntry: async (id: string, entry: Omit<LeaveEntry, 'id'>): Promise<LeaveEntry> => {
+    const { data, error } = await supabase
+      .from('leave_tracker')
+      .update({
+        resource: entry.resource,
+        leave_type: entry.leaveType,
+        start_date: entry.startDate,
+        end_date: entry.endDate,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update leave entry: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      resource: data.resource,
+      leaveType: data.leave_type as LeaveEntry['leaveType'],
+      startDate: data.start_date,
+      endDate: data.end_date,
+    };
+  },
+
   deleteEntry: async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('leave_tracker')

@@ -57,5 +57,21 @@ export const teamStatusService = {
     if (error) {
       throw new Error(`Failed to delete daily status: ${error.message}`);
     }
+  },
+
+  updateEntry: async (id: string, entry: Partial<Omit<DailyStatus, 'id'>>): Promise<void> => {
+    const { error } = await supabase
+      .from('daily_status')
+      .update({
+        date: entry.date,
+        resource: entry.resource,
+        focus: entry.focus,
+        remarks: entry.remarks,
+      })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to update daily status: ${error.message}`);
+    }
   }
 };

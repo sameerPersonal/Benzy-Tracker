@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { leaveTrackerService } from '../services/leaveTrackerService';
+import { teamMemberService } from '../services/teamMemberService';
 import type { LeaveEntry } from '../services/mockData';
 
 export const LeaveTracker: React.FC = () => {
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<LeaveEntry | null>(null);
+
+  // Month navigation state initialized to today's date
+  const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth());
 
   // Form State
   const [resource, setResource] = useState('');
@@ -13,39 +20,124 @@ export const LeaveTracker: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: string; entries: LeaveEntry[] } | null>(null);
 
-  const loadLeaves = async () => {
+  const loadLeaves = async (targetDateStr?: string) => {
     const data = await leaveTrackerService.getAll();
     setLeaves(data);
+
+    // Default to the provided target date, the already selected date, or today
+    const dateToSelect = targetDateStr || selectedDayInfo?.date || new Date().toISOString().split('T')[0];
+    const dayLeaves = data.filter(leave => dateToSelect >= leave.startDate && dateToSelect <= leave.endDate);
+    setSelectedDayInfo({ date: dateToSelect, entries: dayLeaves });
   };
 
   useEffect(() => {
     loadLeaves();
+    const cached = teamMemberService.getMembers();
+    setTeamMembers(cached);
+    if (cached.length > 0) {
+      setResource(cached[0]);
+    }
+    teamMemberService.fetchAndCache()
+      .then(fresh => {
+        setTeamMembers(fresh);
+        setResource(prev => {
+          if (!prev || !fresh.includes(prev)) {
+            return fresh[0] || '';
+          }
+          return prev;
+        });
+      })
+      .catch(err => console.warn('Could not fetch fresh team members:', err));
   }, []);
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(prev => {
+      if (prev === 0) {
+        setCurrentYear(y => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(prev => {
+      if (prev === 11) {
+        setCurrentYear(y => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const handleBookLeaveClick = () => {
+    setEditingLeave(null);
+    setResource(teamMembers[0] || '');
+    setLeaveType('Planned');
+    const defaultDate = selectedDayInfo?.date || new Date().toISOString().split('T')[0];
+    setStartDate(defaultDate);
+    setEndDate(defaultDate);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (entry: LeaveEntry) => {
+    setEditingLeave(entry);
+    setResource(entry.resource);
+    setLeaveType(entry.leaveType);
+    setStartDate(entry.startDate);
+    setEndDate(entry.endDate);
+    setIsModalOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resource || !startDate || !endDate) return;
-    await leaveTrackerService.addEntry({ resource, leaveType, startDate, endDate });
-    setResource('');
-    setStartDate('');
-    setEndDate('');
-    setIsModalOpen(false);
-    loadLeaves();
+
+    try {
+      if (editingLeave) {
+        await leaveTrackerService.updateEntry(editingLeave.id, {
+          resource,
+          leaveType,
+          startDate,
+          endDate
+        });
+      } else {
+        await leaveTrackerService.addEntry({
+          resource,
+          leaveType,
+          startDate,
+          endDate
+        });
+      }
+
+      setResource(teamMembers[0] || '');
+      setStartDate('');
+      setEndDate('');
+      setEditingLeave(null);
+      setIsModalOpen(false);
+      
+      // Reload and select the updated start date in view
+      await loadLeaves(startDate);
+    } catch (err: any) {
+      console.error('Submit error:', err);
+      alert(err.message || 'Failed to save leave entry');
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this leave entry?')) {
-      await leaveTrackerService.deleteEntry(id);
-      loadLeaves();
-      setSelectedDayInfo(null);
+      try {
+        await leaveTrackerService.deleteEntry(id);
+        await loadLeaves();
+      } catch (err: any) {
+        console.error('Delete error:', err);
+        alert(err.message || 'Failed to delete leave entry');
+      }
     }
   };
 
-  // Monthly Calendar configuration (June 2026)
-  const year = 2026;
-  const month = 5; // June (0-indexed)
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startDayOfWeek = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const startDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
 
   const getLeavesForDate = (dateStr: string): LeaveEntry[] => {
     return leaves.filter(leave => {
@@ -59,11 +151,6 @@ export const LeaveTracker: React.FC = () => {
 
   const renderCalendarDays = () => {
     const calendarCells = [];
-    
-    // Empty cells before start of month (adjusting so Monday is the first column as in Stitch)
-    // Sunday start day is index 0. Monday is 1. If startDayOfWeek = 1 (June 1st is Monday), we do 0 empty cells.
-    // Stitch starts Mon, Tue, Wed, Thu, Fri, Sat, Sun.
-    // Shift days of week so Monday is first (index 0).
     const adjustedStart = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 
     for (let i = 0; i < adjustedStart; i++) {
@@ -72,19 +159,25 @@ export const LeaveTracker: React.FC = () => {
       );
     }
 
-    // Month days
     for (let day = 1; day <= daysInMonth; day++) {
-      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dayLeaves = getLeavesForDate(dayStr);
-      const isToday = day === 30; // June 30th as today matching local mock time
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isToday = dayStr === todayStr;
+      const isSelected = selectedDayInfo?.date === dayStr;
+
+      const cellBgStyle = isSelected
+        ? 'bg-primary/10 border-primary/30 ring-1 ring-primary/20'
+        : isToday
+        ? 'bg-primary/5'
+        : '';
 
       calendarCells.push(
         <div
           key={dayStr}
           onClick={() => handleDayClick(dayStr, dayLeaves)}
-          className={`group border-r border-b border-white/5 p-3 min-h-[120px] transition-all hover:bg-white/5 cursor-pointer relative ${
-            isToday ? 'bg-primary/5' : ''
-          }`}
+          className={`group border-r border-b border-white/5 p-3 min-h-[120px] transition-all hover:bg-white/5 cursor-pointer relative ${cellBgStyle}`}
         >
           <div className="flex justify-between items-start mb-2">
             <span 
@@ -122,7 +215,6 @@ export const LeaveTracker: React.FC = () => {
       );
     }
 
-    // Padding cells at the end to make complete rows (multiples of 7)
     const totalCells = adjustedStart + daysInMonth;
     const paddingCells = 7 - (totalCells % 7);
     if (paddingCells < 7) {
@@ -135,6 +227,14 @@ export const LeaveTracker: React.FC = () => {
 
     return calendarCells;
   };
+
+  const selectedPlannedCount = selectedDayInfo 
+    ? selectedDayInfo.entries.filter(e => e.leaveType === 'Planned').length 
+    : 0;
+
+  const selectedEmergencyCount = selectedDayInfo 
+    ? selectedDayInfo.entries.filter(e => e.leaveType === 'Emergency').length 
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -153,17 +253,25 @@ export const LeaveTracker: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <div className="flex bg-surface-container-low rounded-xl p-1 border border-white/5">
-            <button className="p-1 px-2.5 hover:bg-white/5 rounded-lg transition-all text-on-surface-variant/80 text-xs">
+            <button 
+              onClick={handlePrevMonth}
+              className="p-1 px-2.5 hover:bg-white/5 rounded-lg transition-all text-on-surface-variant/80 text-xs cursor-pointer"
+            >
               <span className="material-symbols-outlined text-sm align-middle">chevron_left</span>
             </button>
-            <span className="px-3 py-1 text-xs font-mono font-bold align-middle">June 2026</span>
-            <button className="p-1 px-2.5 hover:bg-white/5 rounded-lg transition-all text-on-surface-variant/80 text-xs">
+            <span className="px-3 py-1 text-xs font-mono font-bold align-middle">
+              {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </span>
+            <button 
+              onClick={handleNextMonth}
+              className="p-1 px-2.5 hover:bg-white/5 rounded-lg transition-all text-on-surface-variant/80 text-xs cursor-pointer"
+            >
               <span className="material-symbols-outlined text-sm align-middle">chevron_right</span>
             </button>
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10 animate-pulse"
+            onClick={handleBookLeaveClick}
+            className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
           >
             <span className="material-symbols-outlined">event_available</span>
             <span className="font-label-caps text-label-caps">Book Leave</span>
@@ -224,12 +332,24 @@ export const LeaveTracker: React.FC = () => {
                         </div>
                         <div className="flex justify-between items-center text-[10px] text-on-surface-variant/60">
                           <span>{entry.startDate} to {entry.endDate}</span>
-                          <button 
-                            onClick={() => handleDelete(entry.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors cursor-pointer"
-                          >
-                            Cancel Leave
-                          </button>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleEditClick(entry)}
+                              className="text-primary hover:text-primary-fixed-dim transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-xs">edit</span>
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(entry.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-xs">delete</span>
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -238,22 +358,24 @@ export const LeaveTracker: React.FC = () => {
               </div>
             ) : (
               <div className="text-xs text-on-surface-variant/60 py-6 text-center italic">
-                Click any calendar date to view leave details or cancel schedule records.
+                Click any calendar date to view leave details or edit schedule records.
               </div>
             )}
           </div>
 
           {/* Quick Stats Widget */}
           <div className="glass-panel p-6 rounded-xl space-y-4">
-            <h4 className="text-xs font-mono font-bold tracking-widest text-on-surface-variant">METRICS SUMMARY</h4>
+            <h4 className="text-xs font-mono font-bold tracking-widest text-on-surface-variant uppercase">
+              STATS: {selectedDayInfo?.date || 'SELECTED DATE'}
+            </h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-white/5 rounded-lg border border-white/5">
                 <div className="text-[9px] text-on-surface-variant font-mono">PLANNED LEAVES</div>
-                <div className="text-lg font-bold text-primary">{leaves.filter(l => l.leaveType === 'Planned').length}</div>
+                <div className="text-lg font-bold text-primary">{selectedPlannedCount}</div>
               </div>
               <div className="p-3 bg-white/5 rounded-lg border border-white/5">
                 <div className="text-[9px] text-on-surface-variant font-mono">EMERGENCY LEAVES</div>
-                <div className="text-lg font-bold text-secondary">{leaves.filter(l => l.leaveType === 'Emergency').length}</div>
+                <div className="text-lg font-bold text-secondary">{selectedEmergencyCount}</div>
               </div>
             </div>
           </div>
@@ -266,7 +388,10 @@ export const LeaveTracker: React.FC = () => {
           <form onSubmit={handleSubmit} className="glass-panel inner-glow w-full max-w-md rounded-2xl p-6 relative">
             <button 
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setEditingLeave(null);
+              }}
               className="absolute top-4 right-4 text-on-surface-variant/80 hover:text-on-surface"
             >
               <span className="material-symbols-outlined">close</span>
@@ -274,7 +399,7 @@ export const LeaveTracker: React.FC = () => {
             
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">event_available</span>
-              Book Resource Leave
+              {editingLeave ? 'Edit Resource Leave' : 'Book Resource Leave'}
             </h3>
 
             <div className="space-y-4">
@@ -282,14 +407,18 @@ export const LeaveTracker: React.FC = () => {
                 <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
                   Resource Name
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Alice Smith"
+                <select
                   value={resource}
                   onChange={(e) => setResource(e.target.value)}
-                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface"
+                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-semibold"
                   required
-                />
+                >
+                  {teamMembers.map((opt) => (
+                    <option key={opt} value={opt} className="bg-[#171f33] text-on-surface font-semibold">
+                      {opt}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -337,7 +466,10 @@ export const LeaveTracker: React.FC = () => {
             <div className="mt-6 flex gap-3">
               <button 
                 type="button" 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingLeave(null);
+                }}
                 className="flex-1 bg-white/5 hover:bg-white/10 text-on-surface font-semibold py-2.5 rounded-lg text-xs border border-white/10"
               >
                 Cancel
@@ -346,7 +478,7 @@ export const LeaveTracker: React.FC = () => {
                 type="submit"
                 className="flex-1 bg-primary hover:opacity-90 text-on-primary font-semibold py-2.5 rounded-lg text-xs shadow-lg shadow-primary/10"
               >
-                Log Schedule
+                {editingLeave ? 'Save Changes' : 'Log Schedule'}
               </button>
             </div>
           </form>
@@ -355,3 +487,4 @@ export const LeaveTracker: React.FC = () => {
     </div>
   );
 };
+export default LeaveTracker;

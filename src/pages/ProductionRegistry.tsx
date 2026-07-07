@@ -35,8 +35,13 @@ export const ProductionRegistry: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this registry entry?')) {
-      await productionRegistryService.deleteEntry(id);
-      loadEntries();
+      try {
+        await productionRegistryService.deleteEntry(id);
+        await loadEntries();
+      } catch (err: any) {
+        console.error('Delete error:', err);
+        alert(err.message || 'Failed to delete entry');
+      }
     }
   };
 
@@ -218,21 +223,11 @@ export const ProductionRegistry: React.FC = () => {
                   </div>
                 </div>
               ))}
-
-              {/* Hardcoded system items as fallback/visual fill */}
-              <div className="relative pl-6 group opacity-70">
-                <div className="absolute left-[7px] top-1.5 w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_rgba(255,178,183,0.4)]"></div>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-mono text-on-surface-variant/60">08:15:02 AM</span>
-                    <span className="bg-tertiary/10 text-tertiary text-[8px] px-1.5 py-0.5 rounded font-bold uppercase">Incident</span>
-                  </div>
-                  <h5 className="text-xs font-bold text-tertiary">Payment-Gateway Drift</h5>
-                  <p className="text-[10px] text-on-surface-variant/70 leading-relaxed">
-                    Detected version mismatch in Tokyo-Edge node. Auto-reversion initiated.
-                  </p>
-                </div>
-              </div>
+              {entries.length === 0 && (
+                <p className="text-[11px] font-mono text-on-surface-variant/60 text-center py-8">
+                  No deployments logged yet.
+                </p>
+              )}
             </div>
           </div>
         </aside>

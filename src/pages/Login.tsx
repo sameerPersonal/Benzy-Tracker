@@ -7,16 +7,32 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('admin@ops.portal');
+  const [isRegister, setIsRegister] = useState(false);
+  const [username, setUsername] = useState('sameer');
+  const [password, setPassword] = useState('smrp@123*');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      const user = await authService.login(email);
-      onLoginSuccess(user);
+      if (isRegister) {
+        if (!name.trim()) {
+          throw new Error('Display Name is required for registration.');
+        }
+        const user = await authService.signup(username, name, password);
+        onLoginSuccess(user);
+      } else {
+        const user = await authService.login(username, password);
+        onLoginSuccess(user);
+      }
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +50,34 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <p className="font-label-caps text-label-caps text-on-surface-variant/70 tracking-widest uppercase">Engineering Command Center</p>
         </div>
 
+        {/* Tab Selector */}
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(false);
+              setError('');
+            }}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              !isRegister ? 'bg-primary text-on-primary shadow' : 'text-on-surface-variant/80 hover:text-on-surface'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(true);
+              setError('');
+            }}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+              isRegister ? 'bg-primary text-on-primary shadow' : 'text-on-surface-variant/80 hover:text-on-surface'
+            }`}
+          >
+            Register
+          </button>
+        </div>
+
         {error && (
           <div className="p-3 bg-tertiary-container/20 text-tertiary rounded-xl border border-tertiary/20 text-xs font-semibold flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">warning</span>
@@ -44,12 +88,43 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
-              Command Email Address
+              Command Username
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g., sameer"
+              className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-mono"
+              required
+            />
+          </div>
+
+          {isRegister && (
+            <div>
+              <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Sameer"
+                className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-mono"
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+              Access Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-mono"
               required
             />
@@ -57,19 +132,15 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
           <button
             type="submit"
-            className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl text-xs hover:opacity-95 transition-all shadow-lg shadow-primary/10 cursor-pointer flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl text-xs hover:opacity-95 transition-all shadow-lg shadow-primary/10 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-sm">login</span>
-            <span>Access Command Console</span>
+            <span className="material-symbols-outlined text-sm">
+              {isRegister ? 'how_to_reg' : 'login'}
+            </span>
+            <span>{loading ? 'Processing...' : isRegister ? 'Register' : 'Sign In'}</span>
           </button>
         </form>
-
-        <div className="pt-4 border-t border-white/5 text-center text-xs text-on-surface-variant/60 font-mono space-y-1">
-          <p>Superuser Credentials Bypass:</p>
-          <p>
-            Use <code className="bg-white/10 px-1.5 py-0.5 rounded text-secondary font-bold">admin@ops.portal</code>
-          </p>
-        </div>
       </div>
     </div>
   );

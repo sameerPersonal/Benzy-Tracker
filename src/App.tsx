@@ -3,13 +3,14 @@ import { ProductionRegistry } from './pages/ProductionRegistry';
 import { DeliveryTracker } from './pages/DeliveryTracker';
 import { LeaveTracker } from './pages/LeaveTracker';
 import { DailyStatus } from './pages/DailyStatus';
-import { AssetRegistry } from './pages/AssetRegistry';
 import { Login } from './pages/Login';
-import type { User } from './services/mockData';
+import type { User, ProductionRegistryEntry } from './services/mockData';
 import { authService } from './services/authService';
-import { getDB } from './services/mockData';
+import { productionRegistryService } from './services/productionRegistryService';
+import { deliveryTrackerService } from './services/deliveryTrackerService';
+import { leaveTrackerService } from './services/leaveTrackerService';
 
-type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status' | 'assets';
+type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
@@ -17,22 +18,37 @@ function App() {
   const [dbStats, setDbStats] = useState({
     activeDeliveries: 0,
     activeLeaveCount: 0,
-    totalAssets: 0,
     totalProjects: 0,
   });
+  const [recentDeploys, setRecentDeploys] = useState<ProductionRegistryEntry[]>([]);
 
   useEffect(() => {
     if (currentUser) {
-      const db = getDB();
-      const activeDels = db.deliveryTracker.filter(d => d.status !== 'Completed').length;
-      const todayStr = new Date().toISOString().split('T')[0];
-      const activeLeaves = db.leaveTracker.filter(l => todayStr >= l.startDate && todayStr <= l.endDate).length;
-      setDbStats({
-        activeDeliveries: activeDels,
-        activeLeaveCount: activeLeaves,
-        totalAssets: db.assetRegistry.length,
-        totalProjects: new Set(db.productionRegistry.map(p => p.project)).size,
-      });
+      const loadStats = async () => {
+        try {
+          const [dels, leaves, prods] = await Promise.all([
+            deliveryTrackerService.getAll(),
+            leaveTrackerService.getAll(),
+            productionRegistryService.getAll(),
+          ]);
+
+          const activeDels = dels.filter(d => d.status !== 'Completed').length;
+          const todayStr = new Date().toISOString().split('T')[0];
+          const activeLeaves = leaves.filter(l => todayStr >= l.startDate && todayStr <= l.endDate).length;
+
+          setDbStats({
+            activeDeliveries: activeDels,
+            activeLeaveCount: activeLeaves,
+            totalProjects: new Set(prods.map(p => p.project)).size,
+          });
+
+          const sortedProds = [...prods].sort((a, b) => b.updatedDate.localeCompare(a.updatedDate));
+          setRecentDeploys(sortedProds.slice(0, 3));
+        } catch (err) {
+          console.error('Error loading stats:', err);
+        }
+      };
+      loadStats();
     }
   }, [currentUser, activeTab]);
 
@@ -51,7 +67,6 @@ function App() {
     { id: 'delivery', name: 'Delivery Tracker', icon: 'local_shipping' },
     { id: 'leave', name: 'Leave Tracker', icon: 'event_busy' },
     { id: 'status', name: 'Daily Team Status', icon: 'assignment' },
-    { id: 'assets', name: 'Server Registry', icon: 'dns' },
   ] as const;
 
   return (
@@ -156,7 +171,7 @@ function App() {
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
               {/* Hero Metrics */}
-              <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Metric Card 1 */}
                 <div className="glass-panel inner-glow p-5 rounded-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -mr-10 -mt-10"></div>
@@ -207,19 +222,6 @@ function App() {
                     <span className="text-on-surface-variant/60 text-xs">nominal status</span>
                   </div>
                 </div>
-
-                {/* Metric Card 4 */}
-                <div className="glass-panel inner-glow p-5 rounded-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-error/5 blur-3xl -mr-10 -mt-10"></div>
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="font-label-caps text-label-caps text-on-surface-variant uppercase">Total Servers</span>
-                    <span className="material-symbols-outlined text-primary-container text-[20px]">dns</span>
-                  </div>
-                  <div className="font-display-lg text-4xl font-bold text-on-surface mb-1">{dbStats.totalAssets}</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-on-surface-variant/60 text-xs">registered in fleet</span>
-                  </div>
-                </div>
               </section>
 
               {/* Bento Grid */}
@@ -239,52 +241,30 @@ function App() {
                     </button>
                   </div>
                   <div className="space-y-6 relative before:content-[''] before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-white/5">
-                    {/* Activity Item 1 */}
-                    <div className="flex gap-6 items-start relative">
-                      <div className="w-10 h-10 rounded-full bg-secondary-container/20 border border-secondary/30 flex items-center justify-center shrink-0 z-10 bg-[#0b1326]">
-                        <span className="material-symbols-outlined text-secondary text-sm">check_circle</span>
-                      </div>
-                      <div className="flex-1 pb-6 border-b border-white/5">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-headline-sm font-semibold text-sm">Production Sync #8291 Success</span>
-                          <span className="font-data-mono text-xs text-on-surface-variant/60">2m ago</span>
+                    {recentDeploys.map((deploy) => (
+                      <div key={deploy.id} className="flex gap-6 items-start relative">
+                        <div className="w-10 h-10 rounded-full bg-secondary-container/20 border border-secondary/30 flex items-center justify-center shrink-0 z-10 bg-[#0b1326]">
+                          <span className="material-symbols-outlined text-secondary text-sm">check_circle</span>
                         </div>
-                        <p className="text-on-surface-variant/80 text-xs mb-3">Service: <span className="text-on-surface">inventory-gateway-v3</span> deployed to us-east-1.</p>
-                        <div className="flex gap-2">
-                          <span className="px-2 py-0.5 rounded bg-surface-container-highest text-[10px] font-mono border border-white/10 text-on-surface-variant">CI/CD</span>
-                          <span className="px-2 py-0.5 rounded bg-surface-container-highest text-[10px] font-mono border border-white/10 text-on-surface-variant">GAS-Sheets</span>
+                        <div className="flex-1 pb-6 border-b border-white/5">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-headline-sm font-semibold text-sm">Deployment Sync Success</span>
+                            <span className="font-data-mono text-xs text-on-surface-variant/60">{deploy.updatedDate}</span>
+                          </div>
+                          <p className="text-on-surface-variant/80 text-xs mb-2">
+                            Service: <span className="text-on-surface">{deploy.project}</span> version <span className="font-mono text-on-surface">{deploy.version}</span> deployed to {deploy.region}.
+                          </p>
+                          {deploy.remarks && (
+                            <p className="text-[10px] text-on-surface-variant/50 italic">"{deploy.remarks}"</p>
+                          )}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Activity Item 2 */}
-                    <div className="flex gap-6 items-start relative">
-                      <div className="w-10 h-10 rounded-full bg-tertiary-container/20 border border-tertiary/30 flex items-center justify-center shrink-0 z-10 bg-[#0b1326]">
-                        <span className="material-symbols-outlined text-tertiary text-sm">warning</span>
+                    ))}
+                    {recentDeploys.length === 0 && (
+                      <div className="text-center py-8 text-xs font-mono text-on-surface-variant/60">
+                        No recent activity or deployments logged in the fleet registry.
                       </div>
-                      <div className="flex-1 pb-6 border-b border-white/5">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-headline-sm font-semibold text-sm">Anomalous Latency Spike</span>
-                          <span className="font-data-mono text-xs text-on-surface-variant/60">14m ago</span>
-                        </div>
-                        <p className="text-on-surface-variant/80 text-xs mb-3">Region: <span className="text-on-surface">eu-central-1</span> detected p99 latency &gt; 450ms.</p>
-                        <button className="text-tertiary font-label-caps text-xs border border-tertiary/30 rounded-lg px-3 py-1 hover:bg-tertiary/10 transition-all">Investigate</button>
-                      </div>
-                    </div>
-
-                    {/* Activity Item 3 */}
-                    <div className="flex gap-6 items-start relative">
-                      <div className="w-10 h-10 rounded-full bg-primary-container/20 border border-primary/30 flex items-center justify-center shrink-0 z-10 bg-[#0b1326]">
-                        <span className="material-symbols-outlined text-primary text-sm">person</span>
-                      </div>
-                      <div className="flex-1 pb-6 border-b border-white/5">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-headline-sm font-semibold text-sm">Access Assumed: Ops Admin</span>
-                          <span className="font-data-mono text-xs text-on-surface-variant/60">45m ago</span>
-                        </div>
-                        <p className="text-on-surface-variant/80 text-xs">User <span className="text-on-surface">{currentUser.name}</span> verified session login and verified local database.</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </section>
 
@@ -356,7 +336,6 @@ function App() {
           {activeTab === 'delivery' && <DeliveryTracker />}
           {activeTab === 'leave' && <LeaveTracker />}
           {activeTab === 'status' && <DailyStatus />}
-          {activeTab === 'assets' && <AssetRegistry />}
         </main>
       </div>
     </div>
