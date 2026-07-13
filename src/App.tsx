@@ -63,7 +63,7 @@ function App() {
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
-    { id: 'production', name: 'Production Registry', icon: 'inventory_2' },
+    { id: 'production', name: 'Live Branch Details', icon: 'alt_route' },
     { id: 'delivery', name: 'Delivery Tracker', icon: 'local_shipping' },
     { id: 'leave', name: 'Leave Tracker', icon: 'event_busy' },
     { id: 'status', name: 'Daily Team Status', icon: 'assignment' },
@@ -106,7 +106,7 @@ function App() {
           className="mb-6 w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-transform"
         >
           <span className="material-symbols-outlined">add_circle</span>
-          <span className="text-sm tracking-wide">Register New Service</span>
+          <span className="text-sm tracking-wide">Register Live Branch</span>
         </button>
 
         <div className="pt-6 border-t border-white/5 flex flex-col gap-1.5">
@@ -237,7 +237,7 @@ function App() {
                       onClick={() => setActiveTab('production')}
                       className="text-primary font-label-caps text-label-caps hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-all text-xs"
                     >
-                      View Registry
+                      View Branch Details
                     </button>
                   </div>
                   <div className="space-y-6 relative before:content-[''] before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-white/5">
@@ -252,7 +252,7 @@ function App() {
                             <span className="font-data-mono text-xs text-on-surface-variant/60">{deploy.updatedDate}</span>
                           </div>
                           <p className="text-on-surface-variant/80 text-xs mb-2">
-                            Service: <span className="text-on-surface">{deploy.project}</span> version <span className="font-mono text-on-surface">{deploy.version}</span> deployed to {deploy.region}.
+                            Project: <span className="text-on-surface">{deploy.project}</span> branch <span className="font-mono text-on-surface">{deploy.version}</span> live in {deploy.region}.
                           </p>
                           {deploy.remarks && (
                             <p className="text-[10px] text-on-surface-variant/50 italic">"{deploy.remarks}"</p>
@@ -262,7 +262,7 @@ function App() {
                     ))}
                     {recentDeploys.length === 0 && (
                       <div className="text-center py-8 text-xs font-mono text-on-surface-variant/60">
-                        No recent activity or deployments logged in the fleet registry.
+                        No recent activity or branch details logged.
                       </div>
                     )}
                   </div>

@@ -23,6 +23,19 @@ export const DeliveryTracker: React.FC = () => {
   const [regionEnvironments, setRegionEnvironments] = useState<Record<string, string[]>>({});
   const [isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
 
+  // Sorting state
+  const [sortField, setSortField] = useState<keyof DeliveryItem | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: keyof DeliveryItem) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const loadItems = async () => {
     const data = await deliveryTrackerService.getAll();
     setItems(data);
@@ -189,6 +202,55 @@ export const DeliveryTracker: React.FC = () => {
     return true;
   });
 
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let comparison = 0;
+
+    if (sortField === 'status') {
+      const aIndex = STATUS_OPTIONS.indexOf(a.status);
+      const bIndex = STATUS_OPTIONS.indexOf(b.status);
+      comparison = aIndex - bIndex;
+    } else if (sortField === 'liveUpdates') {
+      const getLiveUpdatesString = (lu: DeliveryItem['liveUpdates']) => {
+        if (!lu || Object.keys(lu).length === 0) return '';
+        return Object.entries(lu)
+          .map(([region, envs]) => `${region}:${envs.join(',')}`)
+          .join(';');
+      };
+      comparison = getLiveUpdatesString(a.liveUpdates).localeCompare(getLiveUpdatesString(b.liveUpdates));
+    } else {
+      const aVal = a[sortField] || '';
+      const bVal = b[sortField] || '';
+      comparison = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
+    }
+
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
+
+  const renderHeader = (field: keyof DeliveryItem, label: string) => {
+    const isSorted = sortField === field;
+    return (
+      <th 
+        onClick={() => handleSort(field)}
+        className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase cursor-pointer hover:text-primary transition-colors select-none group"
+      >
+        <div className="flex items-center gap-1.5">
+          <span>{label}</span>
+          {isSorted ? (
+            <span className="material-symbols-outlined text-[14px] font-bold text-primary">
+              {sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+            </span>
+          ) : (
+            <span className="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-50 transition-opacity">
+              swap_vert
+            </span>
+          )}
+        </div>
+      </th>
+    );
+  };
+
   const getStatusColor = (st: DeliveryItem['status']) => {
     switch(st) {
       case 'Completed': return 'text-secondary bg-secondary/10 border-secondary/20';
@@ -274,16 +336,16 @@ export const DeliveryTracker: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-container-high/40 border-b border-white/5">
-                    <th className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase">Jira ID</th>
-                    <th className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase">Task Name</th>
-                    <th className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase">Owner</th>
-                    <th className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase">Task Status</th>
-                    <th className="px-6 py-4 font-label-caps text-[10px] font-mono text-on-surface-variant/70 tracking-widest uppercase">Live Updates</th>
-                    <th className="px-6 py-4 text-right"></th>
+                    {renderHeader('jiraId', 'Jira ID')}
+                    {renderHeader('taskName', 'Task Name')}
+                    {renderHeader('resource', 'Owner')}
+                    {renderHeader('status', 'Task Status')}
+                    {renderHeader('liveUpdates', 'Live Updates')}
+                    <th className="px-6 py-4 text-right w-20"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredItems.map((item) => {
+                  {sortedItems.map((item) => {
                     return (
                       <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
                         <td className="px-6 py-4">
@@ -338,7 +400,7 @@ export const DeliveryTracker: React.FC = () => {
                       </tr>
                     );
                   })}
-                  {filteredItems.length === 0 && (
+                  {sortedItems.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant/60 text-xs font-mono">
                         No deliverables match this selection.

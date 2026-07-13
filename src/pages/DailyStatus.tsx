@@ -111,6 +111,8 @@ export const DailyStatus: React.FC = () => {
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays === 2) return 'Day before yesterday';
+    if (diffDays === -1) return 'Tomorrow';
+    if (diffDays === -2) return 'Day after tomorrow';
     if (diffDays > 2 && diffDays <= 7) {
       const [year, month, day] = dateStr.split('-').map(Number);
       const targetDate = new Date(year, month - 1, day);
@@ -119,11 +121,11 @@ export const DailyStatus: React.FC = () => {
     return dateStr;
   };
 
-  // Filter & Sort statuses to keep only "one week" (last 7 days: today and previous 6 days) in date descending order
+  // Filter & Sort statuses to keep future dates and last 7 days in date descending order
   const oneWeekStatuses = [...statuses]
     .filter((status) => {
       const diff = getDaysAgo(status.date);
-      return diff >= 0 && diff <= 7;
+      return diff <= 7; // includes future dates (diff < 0) and past 7 days (diff <= 7)
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 

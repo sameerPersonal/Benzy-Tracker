@@ -49,6 +49,34 @@ export const productionRegistryService = {
     };
   },
 
+  updateEntry: async (id: string, entry: Omit<ProductionRegistryEntry, 'id' | 'updatedDate'>): Promise<ProductionRegistryEntry> => {
+    const { data, error } = await supabase
+      .from('production_registry')
+      .update({
+        region: entry.region,
+        project: entry.project,
+        version: entry.version,
+        remarks: entry.remarks,
+        updated_date: new Date().toISOString().split('T')[0],
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update registry entry: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      region: data.region,
+      project: data.project,
+      version: data.version,
+      updatedDate: data.updated_date,
+      remarks: data.remarks || '',
+    };
+  },
+
   deleteEntry: async (id: string): Promise<void> => {
     const { error } = await supabase
       .from('production_registry')
