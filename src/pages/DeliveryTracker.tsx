@@ -21,7 +21,6 @@ export const DeliveryTracker: React.FC = () => {
   const [status, setStatus] = useState<DeliveryItem['status']>('Open');
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [regionEnvironments, setRegionEnvironments] = useState<Record<string, string[]>>({});
-  const [isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
 
   // Sorting state
   const [sortField, setSortField] = useState<keyof DeliveryItem | null>(null);
@@ -461,7 +460,6 @@ export const DeliveryTracker: React.FC = () => {
               type="button"
               onClick={() => {
                 setIsModalOpen(false);
-                setIsRegionDropdownOpen(false);
                 setEditingItem(null);
               }}
               className="absolute top-4 right-4 text-on-surface-variant/80 hover:text-on-surface"
@@ -637,7 +635,6 @@ export const DeliveryTracker: React.FC = () => {
                 type="button" 
                 onClick={() => {
                   setIsModalOpen(false);
-                  setIsRegionDropdownOpen(false);
                   setEditingItem(null);
                 }}
                 className="flex-1 bg-white/5 hover:bg-white/10 text-on-surface font-semibold py-2.5 rounded-lg text-xs border border-white/10"
