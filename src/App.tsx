@@ -15,6 +15,7 @@ type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status';
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [dbStats, setDbStats] = useState({
     activeDeliveries: 0,
     activeLeaveCount: 0,
@@ -70,15 +71,33 @@ function App() {
   ] as const;
 
   return (
-    <div className="min-h-screen text-on-surface font-body-md mesh-bg flex overflow-x-hidden">
+    <div className="min-h-screen text-on-surface font-body-md mesh-bg flex overflow-x-hidden relative">
+      {/* Mobile Backdrop Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="fixed h-screen w-[260px] left-0 top-0 bg-surface-container-low/70 dark:bg-surface-container-lowest/70 backdrop-blur-xl border-r border-white/5 shadow-2xl flex flex-col p-6 z-50">
-        <div className="mb-8">
-          <div className="text-2xl font-bold tracking-tight text-primary flex items-center gap-3">
-            <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>deployed_code</span>
-            OpsPortal
+      <aside className={`fixed h-screen w-[260px] left-0 top-0 bg-surface-container-low/95 dark:bg-surface-container-lowest/95 backdrop-blur-xl border-r border-white/5 shadow-2xl flex flex-col p-6 z-50 transition-transform duration-300 ease-in-out ${
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <div className="text-2xl font-bold tracking-tight text-primary flex items-center gap-3">
+              <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>deployed_code</span>
+              OpsPortal
+            </div>
+            <div className="font-label-caps text-label-caps text-on-surface-variant mt-1 ml-11">Engineering HQ</div>
           </div>
-          <div className="font-label-caps text-label-caps text-on-surface-variant mt-1 ml-11">Engineering HQ</div>
+          <button 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="lg:hidden text-on-surface-variant hover:text-on-surface p-1"
+          >
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
         </div>
 
         <nav className="flex flex-col gap-1 flex-1">
@@ -87,7 +106,10 @@ function App() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setIsMobileMenuOpen(false);
+                }}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                   isActive
                     ? 'text-primary bg-primary-container/20 font-bold border-l-2 border-primary'
@@ -102,7 +124,10 @@ function App() {
         </nav>
 
         <button 
-          onClick={() => setActiveTab('production')}
+          onClick={() => {
+            setActiveTab('production');
+            setIsMobileMenuOpen(false);
+          }}
           className="mb-6 w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-transform"
         >
           <span className="material-symbols-outlined">add_circle</span>
@@ -130,11 +155,20 @@ function App() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 ml-[260px] flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 ml-0 lg:ml-[260px] flex flex-col min-w-0 min-h-screen">
         {/* Top App Bar */}
-        <header className="sticky top-0 w-full h-16 bg-surface/40 dark:bg-surface-dim/40 backdrop-blur-md border-b border-white/5 z-40 flex justify-between items-center px-8">
-          <div className="flex items-center gap-8">
-            <div className="relative w-64 group">
+        <header className="sticky top-0 w-full h-16 bg-surface/80 dark:bg-surface-dim/80 backdrop-blur-md border-b border-white/5 z-30 flex justify-between items-center px-4 lg:px-8">
+          <div className="flex items-center gap-3 lg:gap-8">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-white/5 transition-all"
+              aria-label="Toggle Menu"
+            >
+              <span className="material-symbols-outlined text-2xl">
+                {isMobileMenuOpen ? 'close' : 'menu'}
+              </span>
+            </button>
+            <div className="relative w-40 sm:w-64 group hidden sm:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
               <input
                 className="w-full bg-surface-container-low border border-white/10 rounded-lg pl-10 pr-4 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-on-surface"
@@ -142,32 +176,35 @@ function App() {
                 type="text"
               />
             </div>
-            <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-6">
               <a className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm" href="#">Documentation</a>
               <a className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm" href="#">API</a>
               <a className="text-primary border-b-2 border-primary pb-0.5 text-xs font-body-sm" href="#">Status</a>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button className="text-on-surface-variant p-2 hover:bg-surface-container-highest/30 rounded-md transition-all">
               <span className="material-symbols-outlined text-[20px]">notifications</span>
             </button>
             <button 
-              onClick={() => setActiveTab('delivery')}
-              className="bg-tertiary-container/20 text-tertiary font-bold px-4 py-1.5 rounded-lg text-xs border border-tertiary/20 flex items-center gap-2 hover:bg-tertiary-container/30 transition-all"
+              onClick={() => {
+                setActiveTab('delivery');
+                setIsMobileMenuOpen(false);
+              }}
+              className="bg-tertiary-container/20 text-tertiary font-bold px-3 sm:px-4 py-1.5 rounded-lg text-xs border border-tertiary/20 flex items-center gap-1.5 hover:bg-tertiary-container/30 transition-all"
             >
               <span className="material-symbols-outlined text-sm">warning</span>
-              New Incident
+              <span className="hidden sm:inline">New Incident</span>
             </button>
-            <div className="h-8 w-[1px] bg-white/10 mx-1"></div>
-            <div className="h-8 w-8 rounded-full overflow-hidden border border-primary/20 bg-white/10 flex items-center justify-center font-bold text-primary text-xs">
+            <div className="h-8 w-[1px] bg-white/10 mx-0.5 sm:mx-1"></div>
+            <div className="h-8 w-8 rounded-full overflow-hidden border border-primary/20 bg-white/10 flex items-center justify-center font-bold text-primary text-xs shrink-0">
               {currentUser.name.split(' ').map(n => n[0]).join('')}
             </div>
           </div>
         </header>
 
         {/* Main Section */}
-        <main className="flex-1 p-8 max-w-[1440px] w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
               {/* Hero Metrics */}
