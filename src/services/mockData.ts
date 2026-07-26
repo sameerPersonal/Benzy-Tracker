@@ -1,7 +1,17 @@
+export interface PagePermissions {
+  production: 'read' | 'write';
+  delivery: 'read' | 'write';
+  leave: 'read' | 'write';
+  status: 'read' | 'write';
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
+  role: 'admin' | 'user';
+  status: 'approved' | 'pending' | 'rejected';
+  permissions: PagePermissions;
 }
 
 export interface ProductionRegistryEntry {
@@ -59,15 +69,27 @@ interface DB {
   currentUser: User | null;
 }
 
+const defaultAdminUser: User = {
+  id: 'sameer',
+  email: 'sameer@opsportal.com',
+  name: 'Sameer',
+  role: 'admin',
+  status: 'approved',
+  permissions: {
+    production: 'write',
+    delivery: 'write',
+    leave: 'write',
+    status: 'write'
+  }
+};
+
 const initialDB: DB = {
   productionRegistry: [],
   deliveryTracker: [],
   leaveTracker: [],
   dailyStatus: [],
-  users: [
-    { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
-  ],
-  currentUser: { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
+  users: [defaultAdminUser],
+  currentUser: defaultAdminUser
 };
 
 export function getDB(): DB {

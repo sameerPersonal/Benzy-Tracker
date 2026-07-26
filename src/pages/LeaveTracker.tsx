@@ -3,7 +3,11 @@ import { leaveTrackerService } from '../services/leaveTrackerService';
 import { teamMemberService } from '../services/teamMemberService';
 import type { LeaveEntry } from '../services/mockData';
 
-export const LeaveTracker: React.FC = () => {
+interface LeaveTrackerProps {
+  canWrite?: boolean;
+}
+
+export const LeaveTracker: React.FC<LeaveTrackerProps> = ({ canWrite = true }) => {
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -269,13 +273,15 @@ export const LeaveTracker: React.FC = () => {
               <span className="material-symbols-outlined text-sm align-middle">chevron_right</span>
             </button>
           </div>
-          <button 
-            onClick={handleBookLeaveClick}
-            className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
-          >
-            <span className="material-symbols-outlined">event_available</span>
-            <span className="font-label-caps text-label-caps">Book Leave</span>
-          </button>
+          {canWrite && (
+            <button 
+              onClick={handleBookLeaveClick}
+              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
+            >
+              <span className="material-symbols-outlined">event_available</span>
+              <span className="font-label-caps text-label-caps">Book Leave</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -332,24 +338,26 @@ export const LeaveTracker: React.FC = () => {
                         </div>
                         <div className="flex justify-between items-center text-[10px] text-on-surface-variant/60">
                           <span>{entry.startDate} to {entry.endDate}</span>
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => handleEditClick(entry)}
-                              className="text-primary hover:text-primary-fixed-dim transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
-                              type="button"
-                            >
-                              <span className="material-symbols-outlined text-xs">edit</span>
-                              Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(entry.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
-                              type="button"
-                            >
-                              <span className="material-symbols-outlined text-xs">delete</span>
-                              Delete
-                            </button>
-                          </div>
+                          {canWrite && (
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => handleEditClick(entry)}
+                                className="text-primary hover:text-primary-fixed-dim transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
+                                type="button"
+                              >
+                                <span className="material-symbols-outlined text-xs">edit</span>
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(entry.id)}
+                                className="text-red-400 hover:text-red-300 transition-colors cursor-pointer flex items-center gap-0.5 font-bold"
+                                type="button"
+                              >
+                                <span className="material-symbols-outlined text-xs">delete</span>
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

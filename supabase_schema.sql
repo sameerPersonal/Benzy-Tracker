@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS public.users (
   user_id UUID UNIQUE,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
+  role TEXT DEFAULT 'user',
+  status TEXT DEFAULT 'pending',
+  permissions JSONB DEFAULT '{"production":"read","delivery":"read","leave":"read","status":"read"}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

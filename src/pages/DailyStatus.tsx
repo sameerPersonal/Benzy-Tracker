@@ -4,7 +4,11 @@ import { leaveTrackerService } from '../services/leaveTrackerService';
 import { teamMemberService } from '../services/teamMemberService';
 import type { DailyStatus as StatusType, LeaveEntry } from '../services/mockData';
 
-export const DailyStatus: React.FC = () => {
+interface DailyStatusProps {
+  canWrite?: boolean;
+}
+
+export const DailyStatus: React.FC<DailyStatusProps> = ({ canWrite = true }) => {
   const [statuses, setStatuses] = useState<StatusType[]>([]);
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
@@ -196,80 +200,81 @@ export const DailyStatus: React.FC = () => {
 
       {/* Main Grid: Form left, Feed right */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Form Container */}
-        <div className="glass-panel inner-glow p-6 rounded-2xl space-y-4 h-fit">
-          <h3 className="text-md font-bold flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">assignment_add</span>
-            Log Today's Focus
-          </h3>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
-                Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-semibold"
-                required
-              />
-            </div>
+        {canWrite && (
+          <div className="glass-panel inner-glow p-6 rounded-2xl space-y-4 h-fit">
+            <h3 className="text-md font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">assignment_add</span>
+              Log Today's Focus
+            </h3>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-semibold"
+                  required
+                />
+              </div>
 
-            <div>
-              <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
-                Resource Name
-              </label>
-              <select
-                value={resource}
-                onChange={(e) => setResource(e.target.value)}
-                className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-semibold"
-                required
+              <div>
+                <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+                  Resource Name
+                </label>
+                <select
+                  value={resource}
+                  onChange={(e) => setResource(e.target.value)}
+                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-semibold"
+                  required
+                >
+                  {teamMembers.map((opt) => (
+                    <option key={opt} value={opt} className="bg-[#171f33] text-on-surface font-semibold">
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+                  Today's Focus
+                </label>
+                <textarea
+                  placeholder="What tasks or Jira tickets are you working on today?"
+                  value={focus}
+                  onChange={(e) => setFocus(e.target.value)}
+                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface"
+                  rows={4}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
+                  Blockers / Remarks
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Awaiting API endpoints integration"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-primary text-on-primary font-bold py-2.5 rounded-lg text-xs hover:opacity-95 transition-all shadow-lg shadow-primary/10 cursor-pointer"
               >
-                {teamMembers.map((opt) => (
-                  <option key={opt} value={opt} className="bg-[#171f33] text-on-surface font-semibold">
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
-                Today's Focus
-              </label>
-              <textarea
-                placeholder="What tasks or Jira tickets are you working on today?"
-                value={focus}
-                onChange={(e) => setFocus(e.target.value)}
-                className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface"
-                rows={4}
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider mb-1">
-                Blockers / Remarks
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Awaiting API endpoints integration"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3 py-2 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-primary text-on-primary font-bold py-2.5 rounded-lg text-xs hover:opacity-95 transition-all shadow-lg shadow-primary/10 cursor-pointer"
-            >
-              Post Status Update
-            </button>
-          </form>
-        </div>
+                Post Status Update
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Daily Feed Timeline */}
         <div className="lg:col-span-2 glass-panel inner-glow p-6 rounded-2xl space-y-4">
@@ -385,22 +390,24 @@ export const DailyStatus: React.FC = () => {
                             <span className="font-semibold text-sm">{status.resource}</span>
                             <span className="text-[10px] font-mono text-on-surface-variant/60">• {formatDateLabel(status.date)}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => startEdit(status)}
-                              className="text-on-surface-variant/50 hover:text-primary p-1 rounded hover:bg-primary/10 transition-all cursor-pointer"
-                              title="Edit Update"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => setDeletingId(status.id)}
-                              className="text-on-surface-variant/50 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
-                              title="Delete Update"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
-                            </button>
-                          </div>
+                          {canWrite && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => startEdit(status)}
+                                className="text-on-surface-variant/50 hover:text-primary p-1 rounded hover:bg-primary/10 transition-all cursor-pointer"
+                                title="Edit Update"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                              </button>
+                              <button
+                                onClick={() => setDeletingId(status.id)}
+                                className="text-on-surface-variant/50 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
+                                title="Delete Update"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                         
                         <p className="text-xs text-on-surface-variant/90 leading-relaxed font-mono">

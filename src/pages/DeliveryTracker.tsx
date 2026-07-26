@@ -7,7 +7,11 @@ const STATUS_OPTIONS: DeliveryItem['status'][] = ['Open', 'In Progress', 'UAT', 
 const REGION_OPTIONS = ['AE', 'SA', 'IN', 'KW', 'QA', 'UK'];
 const ENV_OPTIONS = ['Portal', 'Meta', 'Google'];
 
-export const DeliveryTracker: React.FC = () => {
+interface DeliveryTrackerProps {
+  canWrite?: boolean;
+}
+
+export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = true }) => {
   const [items, setItems] = useState<DeliveryItem[]>([]);
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'upcoming-live' | 'completed'>('all');
@@ -285,24 +289,26 @@ export const DeliveryTracker: React.FC = () => {
             Track Jira ticket lifecycles, task names, and regional/environment live update statuses.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => {
-              setEditingItem(null);
-              setJiraId('');
-              setTaskName('');
-              setResource(teamMembers[0] || '');
-              setStatus('Open');
-              setSelectedRegions([]);
-              setRegionEnvironments({});
-              setIsModalOpen(true);
-            }}
-            className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
-          >
-            <span className="material-symbols-outlined text-sm">add_circle</span>
-            <span className="font-label-caps text-label-caps">Add Deliverable</span>
-          </button>
-        </div>
+        {canWrite && (
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                setEditingItem(null);
+                setJiraId('');
+                setTaskName('');
+                setResource(teamMembers[0] || '');
+                setStatus('Open');
+                setSelectedRegions([]);
+                setRegionEnvironments({});
+                setIsModalOpen(true);
+              }}
+              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
+            >
+              <span className="material-symbols-outlined text-sm">add_circle</span>
+              <span className="font-label-caps text-label-caps">Add Deliverable</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filter Tabs Row */}
@@ -355,15 +361,21 @@ export const DeliveryTracker: React.FC = () => {
                         <td className="px-6 py-4 text-sm font-semibold text-on-surface">{item.taskName}</td>
                         <td className="px-6 py-4 text-sm font-semibold">{item.resource}</td>
                         <td className="px-6 py-4">
-                          <select
-                            value={item.status}
-                            onChange={(e) => handleStatusChange(item.id, e.target.value as DeliveryItem['status'])}
-                            className={`rounded-lg border px-3 py-1.5 text-xs font-mono font-bold focus:outline-none transition-all cursor-pointer ${getStatusColor(item.status)}`}
-                          >
-                            {STATUS_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt} className="bg-[#171f33] text-on-surface font-semibold">{opt}</option>
-                            ))}
-                          </select>
+                          {canWrite ? (
+                            <select
+                              value={item.status}
+                              onChange={(e) => handleStatusChange(item.id, e.target.value as DeliveryItem['status'])}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-mono font-bold focus:outline-none transition-all cursor-pointer ${getStatusColor(item.status)}`}
+                            >
+                              {STATUS_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt} className="bg-[#171f33] text-on-surface font-semibold">{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className={`inline-block rounded-lg border px-3 py-1 text-xs font-mono font-bold ${getStatusColor(item.status)}`}>
+                              {item.status}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-1.5 max-w-[280px]">
@@ -379,22 +391,24 @@ export const DeliveryTracker: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEditClick(item)}
-                              className="text-on-surface-variant/60 hover:text-primary p-1 rounded hover:bg-primary/10 transition-all cursor-pointer"
-                              title="Edit Deliverable"
-                            >
-                              <span className="material-symbols-outlined text-[18px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="text-on-surface-variant/60 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
-                              title="Delete Deliverable"
-                            >
-                              <span className="material-symbols-outlined text-[18px]">delete</span>
-                            </button>
-                          </div>
+                          {canWrite && (
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                className="text-on-surface-variant/60 hover:text-primary p-1 rounded hover:bg-primary/10 transition-all cursor-pointer"
+                                title="Edit Deliverable"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="text-on-surface-variant/60 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
+                                title="Delete Deliverable"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

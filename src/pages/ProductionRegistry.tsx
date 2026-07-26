@@ -24,7 +24,11 @@ const BranchBadge: React.FC<{ branchName: string; customStyle?: { bg: string; bo
   );
 };
 
-export const ProductionRegistry: React.FC = () => {
+interface ProductionRegistryProps {
+  canWrite?: boolean;
+}
+
+export const ProductionRegistry: React.FC<ProductionRegistryProps> = ({ canWrite = true }) => {
   const [entries, setEntries] = useState<ProductionRegistryEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ProductionRegistryEntry | null>(null);
@@ -139,20 +143,22 @@ export const ProductionRegistry: React.FC = () => {
             <span className="material-symbols-outlined text-primary text-[18px]">compare_arrows</span>
             <span className="font-label-caps text-label-caps">Compare Regions</span>
           </button>
-          <button 
-            onClick={() => {
-              setEditingEntry(null);
-              setProject('Flights');
-              setVersion('');
-              setRegion('SA');
-              setRemarks('');
-              setIsModalOpen(true);
-            }}
-            className="bg-secondary text-on-secondary px-6 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-secondary/10 text-xs font-semibold cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            <span className="font-label-caps text-label-caps">Add Branch Details</span>
-          </button>
+          {canWrite && (
+            <button 
+              onClick={() => {
+                setEditingEntry(null);
+                setProject('Flights');
+                setVersion('');
+                setRegion('SA');
+                setRemarks('');
+                setIsModalOpen(true);
+              }}
+              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-lg flex items-center gap-2 hover:bg-primary-fixed-dim transition-all cursor-pointer shadow-lg shadow-primary/20 text-xs"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <span className="font-label-caps text-label-caps">Register Live Branch</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -231,22 +237,24 @@ export const ProductionRegistry: React.FC = () => {
                           {entry.remarks || '-'}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEdit(entry)}
-                              className="text-on-surface-variant/60 hover:text-primary p-1 rounded hover:bg-white/5 transition-all cursor-pointer"
-                              title="Edit Branch Details"
-                            >
-                              <span className="material-symbols-outlined text-[18px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(entry)}
-                              className="text-on-surface-variant/60 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
-                              title="Delete Branch Details"
-                            >
-                              <span className="material-symbols-outlined text-[18px]">delete</span>
-                            </button>
-                          </div>
+                          {canWrite && (
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleEdit(entry)}
+                                className="text-on-surface-variant/60 hover:text-primary p-1 rounded hover:bg-white/5 transition-all cursor-pointer"
+                                title="Edit Branch Details"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(entry)}
+                                className="text-on-surface-variant/60 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all cursor-pointer"
+                                title="Delete Branch Details"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

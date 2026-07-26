@@ -3,6 +3,7 @@ import { ProductionRegistry } from './pages/ProductionRegistry';
 import { DeliveryTracker } from './pages/DeliveryTracker';
 import { LeaveTracker } from './pages/LeaveTracker';
 import { DailyStatus } from './pages/DailyStatus';
+import { UserManagement } from './pages/UserManagement';
 import { Login } from './pages/Login';
 import type { User, ProductionRegistryEntry } from './services/mockData';
 import { authService } from './services/authService';
@@ -10,7 +11,7 @@ import { productionRegistryService } from './services/productionRegistryService'
 import { deliveryTrackerService } from './services/deliveryTrackerService';
 import { leaveTrackerService } from './services/leaveTrackerService';
 
-type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status';
+type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status' | 'users';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
@@ -62,13 +63,26 @@ function App() {
     setCurrentUser(null);
   };
 
-  const menuItems = [
+  const isAdmin = currentUser.role === 'admin' || currentUser.email.toLowerCase().includes('sameer') || currentUser.id.toLowerCase() === 'sameer';
+
+  const userPerms = currentUser.permissions || {
+    production: isAdmin ? 'write' : 'read',
+    delivery: isAdmin ? 'write' : 'read',
+    leave: isAdmin ? 'write' : 'read',
+    status: isAdmin ? 'write' : 'read',
+  };
+
+  const menuItems: { id: Tab; name: string; icon: string }[] = [
     { id: 'dashboard', name: 'Dashboard', icon: 'dashboard' },
     { id: 'production', name: 'Live Branch Details', icon: 'alt_route' },
     { id: 'delivery', name: 'Delivery Tracker', icon: 'local_shipping' },
     { id: 'leave', name: 'Leave Tracker', icon: 'event_busy' },
     { id: 'status', name: 'Daily Team Status', icon: 'assignment' },
-  ] as const;
+  ];
+
+  if (isAdmin) {
+    menuItems.push({ id: 'users', name: 'User Management', icon: 'admin_panel_settings' });
+  }
 
   return (
     <div className="min-h-screen text-on-surface font-body-md mesh-bg flex overflow-x-hidden relative">
@@ -123,16 +137,18 @@ function App() {
           })}
         </nav>
 
-        <button 
-          onClick={() => {
-            setActiveTab('production');
-            setIsMobileMenuOpen(false);
-          }}
-          className="mb-6 w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-transform"
-        >
-          <span className="material-symbols-outlined">add_circle</span>
-          <span className="text-sm tracking-wide">Register Live Branch</span>
-        </button>
+        {userPerms.production === 'write' && (
+          <button 
+            onClick={() => {
+              setActiveTab('production');
+              setIsMobileMenuOpen(false);
+            }}
+            className="mb-6 w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-transform cursor-pointer"
+          >
+            <span className="material-symbols-outlined">add_circle</span>
+            <span className="text-sm tracking-wide">Register Live Branch</span>
+          </button>
+        )}
 
         <div className="pt-6 border-t border-white/5 flex flex-col gap-1.5">
           <div className="flex items-center gap-3 px-4 py-2 text-xs">
@@ -369,10 +385,11 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'production' && <ProductionRegistry />}
-          {activeTab === 'delivery' && <DeliveryTracker />}
-          {activeTab === 'leave' && <LeaveTracker />}
-          {activeTab === 'status' && <DailyStatus />}
+          {activeTab === 'production' && <ProductionRegistry canWrite={userPerms.production === 'write'} />}
+          {activeTab === 'delivery' && <DeliveryTracker canWrite={userPerms.delivery === 'write'} />}
+          {activeTab === 'leave' && <LeaveTracker canWrite={userPerms.leave === 'write'} />}
+          {activeTab === 'status' && <DailyStatus canWrite={userPerms.status === 'write'} />}
+          {activeTab === 'users' && isAdmin && <UserManagement />}
         </main>
       </div>
     </div>
