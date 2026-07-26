@@ -8,8 +8,8 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [isRegister, setIsRegister] = useState(false);
-  const [username, setUsername] = useState('sameer');
-  const [password, setPassword] = useState('smrp@123*');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -94,7 +94,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g., sameer"
+              placeholder="Enter username"
               className="w-full rounded-lg bg-surface-container-low border border-white/10 px-3.5 py-2.5 text-xs focus:ring-1 focus:ring-primary/50 focus:outline-none text-on-surface font-mono"
               required
             />
