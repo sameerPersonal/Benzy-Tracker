@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { ProductionRegistry } from './pages/ProductionRegistry';
 import { DeliveryTracker } from './pages/DeliveryTracker';
 import { LeaveTracker } from './pages/LeaveTracker';
@@ -338,6 +339,7 @@ function App() {
           {activeTab === 'status' && <DailyStatus />}
         </main>
       </div>
+      <Analytics />
     </div>
   );
 }

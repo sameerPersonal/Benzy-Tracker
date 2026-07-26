@@ -21,7 +21,7 @@ export const DeliveryTracker: React.FC = () => {
   const [status, setStatus] = useState<DeliveryItem['status']>('Open');
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [regionEnvironments, setRegionEnvironments] = useState<Record<string, string[]>>({});
-  const [isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
+  const [_isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
 
   // Sorting state
   const [sortField, setSortField] = useState<keyof DeliveryItem | null>(null);
