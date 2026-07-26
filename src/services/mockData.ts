@@ -47,12 +47,6 @@ export const RESOURCE_OPTIONS = [
   'Shehana Sherin'
 ];
 
-const getOffsetDate = (daysAgo: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().split('T')[0];
-};
-
 // Local Storage backing key
 const STORAGE_KEY = 'operations_portal_db';
 
@@ -70,8 +64,10 @@ const initialDB: DB = {
   deliveryTracker: [],
   leaveTracker: [],
   dailyStatus: [],
-  users: [],
-  currentUser: null
+  users: [
+    { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
+  ],
+  currentUser: { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
 };
 
 export function getDB(): DB {
@@ -80,13 +76,58 @@ export function getDB(): DB {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
     return initialDB;
   }
-  const db = JSON.parse(data);
-  // Migrate old db if it contains Alice Smith
-  if (db.dailyStatus && db.dailyStatus.some((s: any) => s.resource === 'Alice Smith')) {
+  try {
+    const db = JSON.parse(data);
+    let updated = false;
+
+    // Filter out dummy test items if any exist
+    if (db.productionRegistry && db.productionRegistry.some((p: any) => p.id === 'p1' || p.project === 'Flight Booking Engine')) {
+      db.productionRegistry = [];
+      updated = true;
+    }
+    if (db.deliveryTracker && db.deliveryTracker.some((d: any) => d.id === 'd1' || d.jiraId === 'OPS-201')) {
+      db.deliveryTracker = [];
+      updated = true;
+    }
+    if (db.leaveTracker && db.leaveTracker.some((l: any) => l.id === 'l1' || l.id === 'l3')) {
+      db.leaveTracker = [];
+      updated = true;
+    }
+    if (db.dailyStatus && db.dailyStatus.some((s: any) => s.id === 's1' || s.focus.includes('OpsPortal authentication'))) {
+      db.dailyStatus = [];
+      updated = true;
+    }
+
+    if (!Array.isArray(db.productionRegistry)) {
+      db.productionRegistry = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.deliveryTracker)) {
+      db.deliveryTracker = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.leaveTracker)) {
+      db.leaveTracker = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.dailyStatus)) {
+      db.dailyStatus = [];
+      updated = true;
+    }
+
+    if (updated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    return db;
+  } catch {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
     return initialDB;
   }
-  return db;
+}
+
+export function resetDB(): DB {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
+  return initialDB;
 }
 
 export function saveDB(db: DB) {

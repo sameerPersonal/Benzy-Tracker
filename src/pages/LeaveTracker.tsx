@@ -382,6 +382,79 @@ export const LeaveTracker: React.FC = () => {
         </aside>
       </div>
 
+      {/* All Scheduled Leaves Summary Table */}
+      <div className="glass-panel rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-headline-sm text-base font-bold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">event_note</span>
+              All Registered Leaves Overview
+            </h3>
+            <p className="text-on-surface-variant/70 text-xs">Complete log of all team leave entries</p>
+          </div>
+          <span className="bg-primary-container/20 text-primary font-mono text-xs font-bold px-3 py-1 rounded-full border border-primary/20">
+            {leaves.length} Total Records
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-white/10 font-mono text-[10px] text-on-surface-variant/80 uppercase tracking-wider bg-white/5">
+                <th className="p-3 font-semibold">Resource</th>
+                <th className="p-3 font-semibold">Leave Type</th>
+                <th className="p-3 font-semibold">Start Date</th>
+                <th className="p-3 font-semibold">End Date</th>
+                <th className="p-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 font-mono">
+              {leaves.map((leave) => (
+                <tr key={leave.id} className="hover:bg-white/5 transition-colors">
+                  <td className="p-3 font-bold font-body text-on-surface">{leave.resource}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      leave.leaveType === 'Emergency' ? 'bg-secondary/20 text-secondary border border-secondary/30' : 'bg-primary/20 text-primary border border-primary/30'
+                    }`}>
+                      {leave.leaveType}
+                    </span>
+                  </td>
+                  <td className="p-3 text-on-surface-variant/90">{leave.startDate}</td>
+                  <td className="p-3 text-on-surface-variant/90">{leave.endDate}</td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-3 font-body">
+                      <button 
+                        onClick={() => handleEditClick(leave)}
+                        className="text-primary hover:underline text-xs font-semibold cursor-pointer flex items-center gap-1"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-xs">edit</span>
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(leave.id)}
+                        className="text-red-400 hover:underline text-xs font-semibold cursor-pointer flex items-center gap-1"
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-xs">delete</span>
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {leaves.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-on-surface-variant/60 font-body italic">
+                    No leave entries found. Click "Book Leave" to log a schedule.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Glassmorphic Book Leave Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
