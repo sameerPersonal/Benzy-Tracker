@@ -16,10 +16,10 @@ export interface ProductionRegistryEntry {
 export interface DeliveryItem {
   id: string;
   jiraId: string;
+  taskName: string;
   resource: string;
   status: 'Open' | 'In Progress' | 'UAT' | 'Ready for Live' | 'Completed' | 'On Hold';
-  expectedDeliveryDate: string;
-  liveDate?: string;
+  liveUpdates?: Record<string, string[]>;
 }
 
 export interface LeaveEntry {
@@ -38,14 +38,14 @@ export interface DailyStatus {
   remarks?: string;
 }
 
-export interface AssetEntry {
-  id: string;
-  region: string;
-  environment: 'Beta' | 'Live' | 'Meta' | 'Google';
-  assetType: 'Main' | 'Utils' | 'MainDB' | 'Replication DB' | 'LogDB';
-  ipAddress: string;
-  remarks?: string;
-}
+export const RESOURCE_OPTIONS = [
+  'Sameer',
+  'Thomas',
+  'Nilha',
+  'Sreeyuktha',
+  'Sidharth',
+  'Shehana Sherin'
+];
 
 // Local Storage backing key
 const STORAGE_KEY = 'operations_portal_db';
@@ -55,41 +55,19 @@ interface DB {
   deliveryTracker: DeliveryItem[];
   leaveTracker: LeaveEntry[];
   dailyStatus: DailyStatus[];
-  assetRegistry: AssetEntry[];
   users: User[];
   currentUser: User | null;
 }
 
 const initialDB: DB = {
-  productionRegistry: [
-    { id: '1', region: 'US-East', project: 'Billing Service', version: 'v2.4.1', updatedDate: '2026-06-15', remarks: 'Optimized performance' },
-    { id: '2', region: 'EU-West', project: 'Billing Service', version: 'v2.4.0', updatedDate: '2026-06-14', remarks: 'Awaiting sync' },
-    { id: '3', region: 'AP-South', project: 'Auth Provider', version: 'v1.1.2', updatedDate: '2026-06-17', remarks: 'Security patches' },
-  ],
-  deliveryTracker: [
-    { id: '1', jiraId: 'OPS-101', resource: 'Alice Smith', status: 'In Progress', expectedDeliveryDate: '2026-06-20' },
-    { id: '2', jiraId: 'OPS-102', resource: 'Bob Jones', status: 'UAT', expectedDeliveryDate: '2026-06-19' },
-    { id: '3', jiraId: 'OPS-103', resource: 'Charlie Brown', status: 'Completed', expectedDeliveryDate: '2026-06-15', liveDate: '2026-06-16' },
-    { id: '4', jiraId: 'OPS-104', resource: 'David Miller', status: 'Open', expectedDeliveryDate: '2026-06-25' },
-  ],
-  leaveTracker: [
-    { id: '1', resource: 'Bob Jones', leaveType: 'Planned', startDate: '2026-06-22', endDate: '2026-06-24' },
-    { id: '2', resource: 'Alice Smith', leaveType: 'Emergency', startDate: '2026-06-18', endDate: '2026-06-18' },
-  ],
-  dailyStatus: [
-    { id: '1', date: '2026-06-18', resource: 'Alice Smith', focus: 'Working on OPS-101 billing updates', remarks: 'Emergency leave in the afternoon' },
-    { id: '2', date: '2026-06-18', resource: 'Bob Jones', focus: 'UAT testing for OPS-102', remarks: '' },
-    { id: '3', date: '2026-06-18', resource: 'David Miller', focus: 'Triage and bugs', remarks: '' },
-  ],
-  assetRegistry: [
-    { id: '1', region: 'US-East', environment: 'Live', assetType: 'Main', ipAddress: '10.0.1.5', remarks: 'Primary web' },
-    { id: '2', region: 'US-East', environment: 'Live', assetType: 'MainDB', ipAddress: '10.0.1.10', remarks: 'RDS Postgres' },
-    { id: '3', region: 'EU-West', environment: 'Beta', assetType: 'Utils', ipAddress: '10.2.4.15', remarks: 'Cron runner' },
-  ],
+  productionRegistry: [],
+  deliveryTracker: [],
+  leaveTracker: [],
+  dailyStatus: [],
   users: [
-    { id: '1', email: 'admin@ops.portal', name: 'Ops Admin' }
+    { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
   ],
-  currentUser: { id: '1', email: 'admin@ops.portal', name: 'Ops Admin' }
+  currentUser: { id: 'sameer', email: 'sameer@opsportal.com', name: 'Sameer' }
 };
 
 export function getDB(): DB {
@@ -98,7 +76,58 @@ export function getDB(): DB {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
     return initialDB;
   }
-  return JSON.parse(data);
+  try {
+    const db = JSON.parse(data);
+    let updated = false;
+
+    // Filter out dummy test items if any exist
+    if (db.productionRegistry && db.productionRegistry.some((p: any) => p.id === 'p1' || p.project === 'Flight Booking Engine')) {
+      db.productionRegistry = [];
+      updated = true;
+    }
+    if (db.deliveryTracker && db.deliveryTracker.some((d: any) => d.id === 'd1' || d.jiraId === 'OPS-201')) {
+      db.deliveryTracker = [];
+      updated = true;
+    }
+    if (db.leaveTracker && db.leaveTracker.some((l: any) => l.id === 'l1' || l.id === 'l3')) {
+      db.leaveTracker = [];
+      updated = true;
+    }
+    if (db.dailyStatus && db.dailyStatus.some((s: any) => s.id === 's1' || s.focus.includes('OpsPortal authentication'))) {
+      db.dailyStatus = [];
+      updated = true;
+    }
+
+    if (!Array.isArray(db.productionRegistry)) {
+      db.productionRegistry = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.deliveryTracker)) {
+      db.deliveryTracker = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.leaveTracker)) {
+      db.leaveTracker = [];
+      updated = true;
+    }
+    if (!Array.isArray(db.dailyStatus)) {
+      db.dailyStatus = [];
+      updated = true;
+    }
+
+    if (updated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    return db;
+  } catch {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
+    return initialDB;
+  }
+}
+
+export function resetDB(): DB {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDB));
+  return initialDB;
 }
 
 export function saveDB(db: DB) {
