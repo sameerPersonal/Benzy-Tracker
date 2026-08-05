@@ -5,11 +5,16 @@ import { LeaveTracker } from './pages/LeaveTracker';
 import { DailyStatus } from './pages/DailyStatus';
 import { UserManagement } from './pages/UserManagement';
 import { Login } from './pages/Login';
-import type { User, ProductionRegistryEntry } from './services/mockData';
+import type { User, ProductionRegistryEntry, DeliveryItem, LeaveEntry, DailyStatus as DailyStatusType } from './services/mockData';
 import { authService } from './services/authService';
 import { productionRegistryService } from './services/productionRegistryService';
 import { deliveryTrackerService } from './services/deliveryTrackerService';
 import { leaveTrackerService } from './services/leaveTrackerService';
+import { teamStatusService } from './services/teamStatusService';
+
+import { ToastContainer, type ToastMessage } from './components/Toast';
+import { GlobalSearchModal } from './components/GlobalSearchModal';
+import { NotificationDrawer, type AlertItem } from './components/NotificationDrawer';
 
 type Tab = 'dashboard' | 'production' | 'delivery' | 'leave' | 'status' | 'users';
 
@@ -17,22 +22,54 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Search & Drawer & Toast state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [infoModal, setInfoModal] = useState<{ title: string; content: string } | null>(null);
+
+  // Global search data pools
+  const [allBranches, setAllBranches] = useState<ProductionRegistryEntry[]>([]);
+  const [allDeliveries, setAllDeliveries] = useState<DeliveryItem[]>([]);
+  const [allLeaves, setAllLeaves] = useState<LeaveEntry[]>([]);
+  const [allStatuses, setAllStatuses] = useState<DailyStatusType[]>([]);
+
+  // Alerts State (Dynamically populated from database & data services)
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
   const [dbStats, setDbStats] = useState({
     activeDeliveries: 0,
     activeLeaveCount: 0,
     totalProjects: 0,
   });
   const [recentDeploys, setRecentDeploys] = useState<ProductionRegistryEntry[]>([]);
+  const [todayTeamFocus, setTodayTeamFocus] = useState<DailyStatusType[]>([]);
+
+  const addToast = (type: ToastMessage['type'], text: string) => {
+    const id = 't_' + Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, type, text }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   useEffect(() => {
     if (currentUser) {
       const loadStats = async () => {
         try {
-          const [dels, leaves, prods] = await Promise.all([
+          const [dels, leaves, prods, statuses] = await Promise.all([
             deliveryTrackerService.getAll(),
             leaveTrackerService.getAll(),
             productionRegistryService.getAll(),
+            teamStatusService.getAll(),
           ]);
+
+          setAllDeliveries(dels);
+          setAllLeaves(leaves);
+          setAllBranches(prods);
+          setAllStatuses(statuses);
 
           const activeDels = dels.filter(d => d.status !== 'Completed').length;
           const todayStr = new Date().toISOString().split('T')[0];
@@ -46,6 +83,82 @@ function App() {
 
           const sortedProds = [...prods].sort((a, b) => b.updatedDate.localeCompare(a.updatedDate));
           setRecentDeploys(sortedProds.slice(0, 3));
+
+          const todayStatuses = statuses.filter(s => s.date === todayStr);
+          const displayStatuses = todayStatuses.length > 0 ? todayStatuses : statuses.slice(0, 4);
+          setTodayTeamFocus(displayStatuses);
+
+          // Generate Real Operational Alerts
+          const generatedAlerts: AlertItem[] = [];
+
+          // 1. Pending Access Requests (for admins)
+          try {
+            const users: User[] = await authService.getAllUsers();
+            const pendingUsers = users.filter((u: User) => u.status === 'pending');
+            if (pendingUsers.length > 0) {
+              generatedAlerts.push({
+                id: 'alert_pending_users',
+                code: 'USER-APPROVAL',
+                message: `${pendingUsers.length} user account(s) awaiting registration approval`,
+                type: 'critical',
+                status: 'active',
+                actionTab: 'users',
+              });
+            }
+          } catch (e) {
+            console.warn('Could not check pending users:', e);
+          }
+
+          // 2. Deliverables Ready for Live Release
+          const readyForLiveCount = dels.filter(d => d.status === 'Ready for Live').length;
+          if (readyForLiveCount > 0) {
+            generatedAlerts.push({
+              id: 'alert_ready_live',
+              code: 'RELEASE-READY',
+              message: `${readyForLiveCount} deliverable(s) marked Ready for Live release`,
+              type: 'info',
+              status: 'active',
+              actionTab: 'delivery',
+            });
+          }
+
+          // 3. Emergency Leaves Today
+          const todayEmergencyLeaves = leaves.filter(l => todayStr >= l.startDate && todayStr <= l.endDate && l.leaveType === 'Emergency');
+          if (todayEmergencyLeaves.length > 0) {
+            const names = todayEmergencyLeaves.map(l => l.resource).join(', ');
+            generatedAlerts.push({
+              id: 'alert_emergency_leave',
+              code: 'CAPACITY-WARN',
+              message: `Emergency Leave today: ${names}`,
+              type: 'warning',
+              status: 'active',
+              actionTab: 'leave',
+            });
+          }
+
+          // 4. Active In-Flight Deliveries
+          const inFlightCount = dels.filter(d => d.status === 'In Progress' || d.status === 'UAT').length;
+          if (inFlightCount > 0) {
+            generatedAlerts.push({
+              id: 'alert_in_flight',
+              code: 'DELIVERY-FLIGHT',
+              message: `${inFlightCount} deliverable(s) currently in flight (In Progress / UAT)`,
+              type: 'info',
+              status: 'active',
+              actionTab: 'delivery',
+            });
+          }
+
+          setAlerts(prev => {
+            const resolvedIds = new Set(prev.filter(a => a.status === 'resolved').map(a => a.id));
+            const ackIds = new Set(prev.filter(a => a.status === 'acknowledged').map(a => a.id));
+            return generatedAlerts.map(ga => {
+              if (resolvedIds.has(ga.id)) return { ...ga, status: 'resolved' };
+              if (ackIds.has(ga.id)) return { ...ga, status: 'acknowledged' };
+              return ga;
+            });
+          });
+
         } catch (err) {
           console.error('Error loading stats:', err);
         }
@@ -53,6 +166,16 @@ function App() {
       loadStats();
     }
   }, [currentUser, activeTab]);
+
+  const handleAcknowledgeAlert = (id: string) => {
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'acknowledged' } : a));
+    addToast('info', 'Alert acknowledged');
+  };
+
+  const handleResolveAlert = (id: string) => {
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' } : a));
+    addToast('success', 'Alert marked as resolved');
+  };
 
   if (!currentUser) {
     return <Login onLoginSuccess={(user) => setCurrentUser(user)} />;
@@ -99,12 +222,9 @@ function App() {
         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <div className="mb-8 flex justify-between items-center">
-          <div>
-            <div className="text-2xl font-bold tracking-tight text-primary flex items-center gap-3">
-              <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>deployed_code</span>
-              OpsPortal
-            </div>
-            <div className="font-label-caps text-label-caps text-on-surface-variant mt-1 ml-11">Engineering HQ</div>
+          <div className="text-2xl font-bold tracking-tight text-primary flex items-center gap-3">
+            <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>deployed_code</span>
+            OpsPortal
           </div>
           <button 
             onClick={() => setIsMobileMenuOpen(false)}
@@ -136,19 +256,6 @@ function App() {
             );
           })}
         </nav>
-
-        {userPerms.production === 'write' && (
-          <button 
-            onClick={() => {
-              setActiveTab('production');
-              setIsMobileMenuOpen(false);
-            }}
-            className="mb-6 w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-transform cursor-pointer"
-          >
-            <span className="material-symbols-outlined">add_circle</span>
-            <span className="text-sm tracking-wide">Register Live Branch</span>
-          </button>
-        )}
 
         <div className="pt-6 border-t border-white/5 flex flex-col gap-1.5">
           <div className="flex items-center gap-3 px-4 py-2 text-xs">
@@ -184,30 +291,69 @@ function App() {
                 {isMobileMenuOpen ? 'close' : 'menu'}
               </span>
             </button>
-            <div className="relative w-40 sm:w-64 group hidden sm:block">
+            <div
+              onClick={() => setIsSearchOpen(true)}
+              className="relative w-40 sm:w-64 group hidden sm:block cursor-pointer"
+            >
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
               <input
-                className="w-full bg-surface-container-low border border-white/10 rounded-lg pl-10 pr-4 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-on-surface"
+                readOnly
+                className="w-full bg-surface-container-low border border-white/10 rounded-lg pl-10 pr-12 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all text-on-surface cursor-pointer select-none"
                 placeholder="Global node search..."
                 type="text"
               />
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[9px] font-mono text-on-surface-variant/70 bg-white/5 border border-white/10 rounded">
+                Ctrl+K
+              </kbd>
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <a className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm" href="#">Documentation</a>
-              <a className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm" href="#">API</a>
-              <a className="text-primary border-b-2 border-primary pb-0.5 text-xs font-body-sm" href="#">Status</a>
+              <button
+                onClick={() => setInfoModal({
+                  title: 'Documentation & API Guides',
+                  content: 'OpsPortal Live Branch Tracker API endpoints:\n• GET /api/v1/registry - Fetch all live production branches\n• POST /api/v1/registry - Register branch deployment\n• GET /api/v1/deliveries - Query Jira task pipeline & incident metrics'
+                })}
+                className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm"
+              >
+                Documentation
+              </button>
+              <button
+                onClick={() => setInfoModal({
+                  title: 'REST API Specs',
+                  content: 'Swagger OpenAPI 3.0 specs available at /api/docs.\nAuthentication header: Authorization: Bearer <token>\nSupabase Realtime channels enabled for daily_status and production_registry.'
+                })}
+                className="text-on-surface-variant font-medium hover:text-primary transition-all text-xs font-body-sm"
+              >
+                API
+              </button>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`text-xs font-body-sm transition-all ${
+                  activeTab === 'dashboard'
+                    ? 'text-primary border-b-2 border-primary pb-0.5 font-bold'
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
+                Status
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <button className="text-on-surface-variant p-2 hover:bg-surface-container-highest/30 rounded-md transition-all">
+            <button
+              onClick={() => setIsNotificationOpen(true)}
+              className="text-on-surface-variant p-2 hover:bg-surface-container-highest/30 rounded-md transition-all relative"
+              title="Notification Center"
+            >
               <span className="material-symbols-outlined text-[20px]">notifications</span>
+              {alerts.filter(a => a.status !== 'resolved').length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-tertiary rounded-full animate-ping" />
+              )}
             </button>
             <button 
               onClick={() => {
                 setActiveTab('delivery');
                 setIsMobileMenuOpen(false);
               }}
-              className="bg-tertiary-container/20 text-tertiary font-bold px-3 sm:px-4 py-1.5 rounded-lg text-xs border border-tertiary/20 flex items-center gap-1.5 hover:bg-tertiary-container/30 transition-all"
+              className="bg-tertiary-container/20 text-tertiary font-bold px-3 sm:px-4 py-1.5 rounded-lg text-xs border border-tertiary/20 flex items-center gap-1.5 hover:bg-tertiary-container/30 transition-all active:scale-95"
             >
               <span className="material-symbols-outlined text-sm">warning</span>
               <span className="hidden sm:inline">New Incident</span>
@@ -328,23 +474,48 @@ function App() {
                     <div className="flex items-center gap-3 mb-4">
                       <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
                       <h3 className="font-headline-sm font-bold text-sm text-on-surface">Priority Alerts</h3>
-                      <span className="ml-auto bg-tertiary-container/20 text-tertiary font-mono text-[10px] px-2.5 py-0.5 rounded-full">2 Active</span>
+                      <span className="ml-auto bg-tertiary-container/20 text-tertiary font-mono text-[10px] px-2.5 py-0.5 rounded-full">
+                        {alerts.filter(a => a.status !== 'resolved').length} Active
+                      </span>
                     </div>
                     <div className="space-y-4">
-                      <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                        <div className="font-label-caps text-[9px] text-tertiary mb-1 font-mono uppercase">DB-01-CLUSTER</div>
-                        <div className="text-xs font-semibold">Memory saturation at 94%</div>
-                        <div className="mt-2 h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full bg-tertiary w-[94%]"></div>
+                      {alerts.map(alert => (
+                        <div key={alert.id} className="p-3 bg-white/5 rounded-xl border border-white/5">
+                          <div className="flex justify-between items-center mb-1">
+                            <div className="font-label-caps text-[9px] text-tertiary font-mono uppercase">{alert.code}</div>
+                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${
+                              alert.status === 'resolved' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                            }`}>
+                              {alert.status}
+                            </span>
+                          </div>
+                          <div className="text-xs font-semibold">{alert.message}</div>
+                          {alert.status !== 'resolved' && (
+                            <div className="mt-2.5 flex justify-end gap-2.5 items-center">
+                              {alert.actionTab && (
+                                <button
+                                  onClick={() => setActiveTab(alert.actionTab as Tab)}
+                                  className="text-primary text-[11px] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>View Details</span>
+                                  <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleResolveAlert(alert.id)}
+                                className="text-emerald-400 text-[11px] font-bold hover:underline cursor-pointer"
+                              >
+                                Resolve
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                        <div className="font-label-caps text-[9px] text-tertiary mb-1 font-mono uppercase">NETWORK-CORE</div>
-                        <div className="text-xs font-semibold">SSL Certificate expiration (3 days)</div>
-                        <div className="mt-2 text-right">
-                          <button className="text-primary text-xs font-bold hover:underline">Renew Now</button>
+                      ))}
+                      {alerts.length === 0 && (
+                        <div className="text-center py-6 text-xs text-on-surface-variant/60">
+                          No active operational alerts. System healthy.
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -352,26 +523,28 @@ function App() {
                   <div className="glass-panel inner-glow rounded-2xl p-6 shadow-xl">
                     <h3 className="font-headline-sm text-sm font-bold text-on-surface mb-4">Today's Team Focus</h3>
                     <div className="space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-xs text-primary shrink-0">
-                          AS
+                      {todayTeamFocus.map((item, idx) => {
+                        const initials = item.resource ? item.resource.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
+                        const colors = ['bg-primary/20 text-primary border-primary/30', 'bg-secondary/20 text-secondary border-secondary/30', 'bg-tertiary/20 text-tertiary border-tertiary/30'];
+                        const colorClass = colors[idx % colors.length];
+                        return (
+                          <div key={item.id} className="flex items-center gap-4">
+                            <div className={`h-8 w-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 ${colorClass}`}>
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-bold text-on-surface truncate">{item.resource}</div>
+                              <div className="text-[10px] text-on-surface-variant truncate">{item.focus}</div>
+                            </div>
+                            <span className="w-2 h-2 rounded-full bg-secondary"></span>
+                          </div>
+                        );
+                      })}
+                      {todayTeamFocus.length === 0 && (
+                        <div className="text-xs text-on-surface-variant/60 italic py-2 text-center">
+                          No status entries logged for today yet.
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-on-surface truncate">Alice Smith</div>
-                          <div className="text-[10px] text-on-surface-variant truncate">Working on OPS-101 updates</div>
-                        </div>
-                        <span className="w-2 h-2 rounded-full bg-secondary"></span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="h-8 w-8 rounded-full bg-secondary/20 border border-secondary/30 flex items-center justify-center font-bold text-xs text-secondary shrink-0">
-                          BJ
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-on-surface truncate">Bob Jones</div>
-                          <div className="text-[10px] text-on-surface-variant truncate">Planned Leave tomorrow</div>
-                        </div>
-                        <span className="w-2 h-2 rounded-full bg-primary-container"></span>
-                      </div>
+                      )}
                     </div>
                     <button 
                       onClick={() => setActiveTab('status')}
@@ -392,6 +565,49 @@ function App() {
           {activeTab === 'users' && isAdmin && <UserManagement />}
         </main>
       </div>
+
+      {/* Global Modals & Notifications */}
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectTab={(tab) => setActiveTab(tab)}
+        branches={allBranches}
+        deliveries={allDeliveries}
+        leaves={allLeaves}
+        statuses={allStatuses}
+      />
+
+      <NotificationDrawer
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        recentDeploys={recentDeploys}
+        leaves={allLeaves}
+        alerts={alerts}
+        onAcknowledgeAlert={handleAcknowledgeAlert}
+        onResolveAlert={handleResolveAlert}
+      />
+
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
+      {infoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#0b1326] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-base font-bold text-on-surface mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">info</span>
+              {infoModal.title}
+            </h3>
+            <pre className="text-xs font-mono text-on-surface-variant bg-white/5 p-4 rounded-xl whitespace-pre-wrap leading-relaxed mb-6 border border-white/5">
+              {infoModal.content}
+            </pre>
+            <button
+              onClick={() => setInfoModal(null)}
+              className="w-full py-2 bg-primary text-on-primary font-bold text-xs rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

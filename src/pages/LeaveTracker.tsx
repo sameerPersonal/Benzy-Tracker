@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { leaveTrackerService } from '../services/leaveTrackerService';
 import { teamMemberService } from '../services/teamMemberService';
 import type { LeaveEntry } from '../services/mockData';
+import { downloadCSV } from '../utils/exportUtils';
 
 interface LeaveTrackerProps {
   canWrite?: boolean;
@@ -23,6 +24,12 @@ export const LeaveTracker: React.FC<LeaveTrackerProps> = ({ canWrite = true }) =
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: string; entries: LeaveEntry[] } | null>(null);
+
+  const handleExportCSV = () => {
+    const headers = ['Resource Name', 'Leave Type', 'Start Date', 'End Date'];
+    const rows = leaves.map(l => [l.resource, l.leaveType, l.startDate, l.endDate]);
+    downloadCSV(`Team_Leaves_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+  };
 
   const loadLeaves = async (targetDateStr?: string) => {
     const data = await leaveTrackerService.getAll();
@@ -255,7 +262,14 @@ export const LeaveTracker: React.FC<LeaveTrackerProps> = ({ canWrite = true }) =
             Track planned holidays, emergency availability limits, and shift indicators.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2.5">
+          <button 
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white/5 text-on-surface border border-white/10 rounded-xl flex items-center gap-2 hover:bg-white/10 transition-all text-xs font-semibold cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span>Export CSV</span>
+          </button>
           <div className="flex bg-surface-container-low rounded-xl p-1 border border-white/5">
             <button 
               onClick={handlePrevMonth}
@@ -276,7 +290,7 @@ export const LeaveTracker: React.FC<LeaveTrackerProps> = ({ canWrite = true }) =
           {canWrite && (
             <button 
               onClick={handleBookLeaveClick}
-              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
+              className="bg-primary text-on-primary font-bold px-5 py-2 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
             >
               <span className="material-symbols-outlined">event_available</span>
               <span className="font-label-caps text-label-caps">Book Leave</span>

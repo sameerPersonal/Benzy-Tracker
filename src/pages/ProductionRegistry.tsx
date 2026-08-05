@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { productionRegistryService } from '../services/productionRegistryService';
 import type { ProductionRegistryEntry } from '../services/mockData';
+import { exportBranchMatrixToSlack, downloadCSV, copyToClipboard } from '../utils/exportUtils';
 
 const BranchBadge: React.FC<{ branchName: string; customStyle?: { bg: string; border: string; text: string } | null }> = ({ branchName, customStyle }) => {
   if (!branchName || branchName === '-') {
@@ -33,6 +34,11 @@ export const ProductionRegistry: React.FC<ProductionRegistryProps> = ({ canWrite
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ProductionRegistryEntry | null>(null);
   const [deleteConfirmEntry, setDeleteConfirmEntry] = useState<ProductionRegistryEntry | null>(null);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('All');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   // Sorting State
   const [sortField, setSortField] = useState<'project' | 'version' | 'region' | 'updatedDate' | 'remarks'>('updatedDate');
@@ -68,7 +74,29 @@ export const ProductionRegistry: React.FC<ProductionRegistryProps> = ({ canWrite
     );
   };
 
-  const sortedEntries = [...entries].sort((a, b) => {
+  const handleCopySlackReport = async () => {
+    const reportText = exportBranchMatrixToSlack(entries);
+    const success = await copyToClipboard(reportText);
+    if (success) {
+      setCopyFeedback('Copied Slack report to clipboard!');
+      setTimeout(() => setCopyFeedback(null), 3000);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Project', 'Region', 'Git Branch / Version', 'Updated Date', 'Remarks'];
+    const rows = entries.map(e => [e.project, e.region, e.version, e.updatedDate, e.remarks || '']);
+    downloadCSV(`Live_Branches_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+  };
+
+  const filteredEntries = entries.filter(e => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || e.project.toLowerCase().includes(q) || e.version.toLowerCase().includes(q) || e.region.toLowerCase().includes(q) || (e.remarks && e.remarks.toLowerCase().includes(q));
+    const matchesRegion = selectedRegion === 'All' || e.region === selectedRegion;
+    return matchesSearch && matchesRegion;
+  });
+
+  const sortedEntries = [...filteredEntries].sort((a, b) => {
     const valA = a[sortField]?.toLowerCase() || '';
     const valB = b[sortField]?.toLowerCase() || '';
     if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
@@ -135,10 +163,24 @@ export const ProductionRegistry: React.FC<ProductionRegistryProps> = ({ canWrite
           <h2 className="font-headline-md text-2xl font-bold text-on-surface tracking-tight">Live Branch Details</h2>
           <p className="text-on-surface-variant/70 text-xs">Tracking git branch deployment across regions.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2.5">
+          <button 
+            onClick={handleCopySlackReport}
+            className="px-4 py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg flex items-center gap-2 hover:bg-emerald-500/30 transition-all text-xs font-bold shadow-md cursor-pointer active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[18px]">content_copy</span>
+            <span>{copyFeedback || 'Copy Slack Matrix Report'}</span>
+          </button>
+          <button 
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white/5 text-on-surface border border-white/10 rounded-lg flex items-center gap-2 hover:bg-white/10 transition-all text-xs font-semibold cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span>Export CSV</span>
+          </button>
           <button 
             onClick={() => setIsCompareOpen(true)}
-            className="glass-panel px-6 py-2.5 rounded-lg flex items-center gap-2 hover:bg-white/10 transition-all active:scale-95 text-xs text-on-surface font-semibold cursor-pointer border border-white/10"
+            className="glass-panel px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-white/10 transition-all active:scale-95 text-xs text-on-surface font-semibold cursor-pointer border border-white/10"
           >
             <span className="material-symbols-outlined text-primary text-[18px]">compare_arrows</span>
             <span className="font-label-caps text-label-caps">Compare Regions</span>
@@ -153,12 +195,42 @@ export const ProductionRegistry: React.FC<ProductionRegistryProps> = ({ canWrite
                 setRemarks('');
                 setIsModalOpen(true);
               }}
-              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-lg flex items-center gap-2 hover:bg-primary-fixed-dim transition-all cursor-pointer shadow-lg shadow-primary/20 text-xs"
+              className="bg-primary text-on-primary font-bold px-5 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-fixed-dim transition-all cursor-pointer shadow-lg shadow-primary/20 text-xs"
             >
               <span className="material-symbols-outlined text-[18px]">add_circle</span>
               <span className="font-label-caps text-label-caps">Register Live Branch</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Search & Region Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between glass-panel p-4 rounded-xl border border-white/5">
+        <div className="relative flex-1 max-w-md">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Filter by project, branch version, or region..."
+            className="w-full bg-surface-container-low border border-white/10 rounded-lg pl-10 pr-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 text-on-surface"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+          <span className="text-on-surface-variant/60 font-mono text-[10px] uppercase mr-1">Region:</span>
+          {['All', 'AE', 'SA', 'IN', 'QA', 'KW', 'UK'].map(reg => (
+            <button
+              key={reg}
+              onClick={() => setSelectedRegion(reg)}
+              className={`px-3 py-1 rounded-md text-xs font-mono font-bold transition-all ${
+                selectedRegion === reg
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'bg-white/5 text-on-surface-variant hover:text-on-surface hover:bg-white/10'
+              }`}
+            >
+              {reg}
+            </button>
+          ))}
         </div>
       </div>
 

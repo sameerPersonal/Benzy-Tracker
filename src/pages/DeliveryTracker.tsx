@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { deliveryTrackerService } from '../services/deliveryTrackerService';
 import { teamMemberService } from '../services/teamMemberService';
 import type { DeliveryItem } from '../services/mockData';
+import { exportDeliveryStandupToSlack, downloadCSV, copyToClipboard } from '../utils/exportUtils';
 
 const STATUS_OPTIONS: DeliveryItem['status'][] = ['Open', 'In Progress', 'UAT', 'Ready for Live', 'Completed', 'On Hold'];
 const REGION_OPTIONS = ['AE', 'SA', 'IN', 'KW', 'QA', 'UK'];
@@ -17,7 +18,11 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'upcoming-live' | 'completed'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DeliveryItem | null>(null);
-  
+
+  // Search & Copy feedback
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+
   // Form state
   const [jiraId, setJiraId] = useState('');
   const [taskName, setTaskName] = useState('');
@@ -25,6 +30,24 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
   const [status, setStatus] = useState<DeliveryItem['status']>('Open');
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [regionEnvironments, setRegionEnvironments] = useState<Record<string, string[]>>({});
+
+  const handleCopySlackReport = async () => {
+    const reportText = exportDeliveryStandupToSlack(items);
+    const success = await copyToClipboard(reportText);
+    if (success) {
+      setCopyFeedback('Copied Standup to clipboard!');
+      setTimeout(() => setCopyFeedback(null), 3000);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Jira ID', 'Task Name', 'Resource', 'Status', 'Live Deployment Updates'];
+    const rows = items.map(i => {
+      const envStr = i.liveUpdates ? Object.entries(i.liveUpdates).map(([r, e]) => `${r}: ${e.join('/')}`).join(' | ') : '';
+      return [i.jiraId, i.taskName, i.resource, i.status, envStr];
+    });
+    downloadCSV(`Delivery_Tracker_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+  };
 
   // Sorting state
   const [sortField, setSortField] = useState<keyof DeliveryItem | null>(null);
@@ -192,6 +215,15 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
   };
 
   const filteredItems = items.filter(item => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q ||
+      item.jiraId.toLowerCase().includes(q) ||
+      item.taskName.toLowerCase().includes(q) ||
+      item.resource.toLowerCase().includes(q) ||
+      item.status.toLowerCase().includes(q);
+
+    if (!matchesSearch) return false;
+
     if (activeTab === 'all') return true;
     if (activeTab === 'active') {
       return item.status === 'In Progress' || item.status === 'UAT' || item.status === 'Open';
@@ -289,8 +321,22 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
             Track Jira ticket lifecycles, task names, and regional/environment live update statuses.
           </p>
         </div>
-        {canWrite && (
-          <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2.5">
+          <button 
+            onClick={handleCopySlackReport}
+            className="px-4 py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl flex items-center gap-2 hover:bg-emerald-500/30 transition-all text-xs font-bold shadow-md cursor-pointer active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[18px]">content_copy</span>
+            <span>{copyFeedback || 'Copy Standup Summary'}</span>
+          </button>
+          <button 
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white/5 text-on-surface border border-white/10 rounded-xl flex items-center gap-2 hover:bg-white/10 transition-all text-xs font-semibold cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span>Export CSV</span>
+          </button>
+          {canWrite && (
             <button 
               onClick={() => {
                 setEditingItem(null);
@@ -302,12 +348,29 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
                 setRegionEnvironments({});
                 setIsModalOpen(true);
               }}
-              className="bg-primary text-on-primary font-bold px-6 py-2.5 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
+              className="bg-primary text-on-primary font-bold px-5 py-2 rounded-xl text-xs border border-primary/20 flex items-center gap-2 hover:bg-primary-fixed-dim hover:text-primary-fixed transition-all cursor-pointer shadow-lg shadow-primary/10"
             >
               <span className="material-symbols-outlined text-sm">add_circle</span>
               <span className="font-label-caps text-label-caps">Add Deliverable</span>
             </button>
-          </div>
+          )}
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="glass-panel p-3.5 rounded-xl border border-white/5 flex items-center gap-3">
+        <span className="material-symbols-outlined text-on-surface-variant text-[18px] ml-1">search</span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Filter deliverables by Jira ID, task name, resource, or status..."
+          className="w-full bg-transparent text-xs text-on-surface focus:outline-none placeholder:text-on-surface-variant/50"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="text-on-surface-variant/70 hover:text-on-surface text-xs font-semibold px-2">
+            Clear
+          </button>
         )}
       </div>
 
@@ -326,7 +389,7 @@ export const DeliveryTracker: React.FC<DeliveryTrackerProps> = ({ canWrite = tru
             {tab === 'all' && `All Tasks (${items.length})`}
             {tab === 'active' && `In Flight (${openCount + activeCount})`}
             {tab === 'upcoming-live' && `Ready for Live (${readyCount})`}
-            {tab === 'completed' && `Completed (${completedCount + onHoldCount})`}
+            {tab === 'completed' && `Done / Hold (${completedCount + onHoldCount})`}
           </button>
         ))}
       </div>

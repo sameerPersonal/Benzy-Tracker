@@ -3,6 +3,7 @@ import { teamStatusService } from '../services/teamStatusService';
 import { leaveTrackerService } from '../services/leaveTrackerService';
 import { teamMemberService } from '../services/teamMemberService';
 import type { DailyStatus as StatusType, LeaveEntry } from '../services/mockData';
+import { exportDailyStatusToSlack, downloadCSV, copyToClipboard } from '../utils/exportUtils';
 
 interface DailyStatusProps {
   canWrite?: boolean;
@@ -15,6 +16,7 @@ export const DailyStatus: React.FC<DailyStatusProps> = ({ canWrite = true }) => 
   const [resource, setResource] = useState('');
   const [focus, setFocus] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(todayStr);
@@ -28,6 +30,22 @@ export const DailyStatus: React.FC<DailyStatusProps> = ({ canWrite = true }) => 
 
   // Deleting State
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleCopySlackReport = async () => {
+    const todayStatuses = statuses.filter(s => s.date === todayStr);
+    const reportText = exportDailyStatusToSlack(todayStatuses, leaves);
+    const success = await copyToClipboard(reportText);
+    if (success) {
+      setCopyFeedback('Copied Digest to clipboard!');
+      setTimeout(() => setCopyFeedback(null), 3000);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Date', 'Resource Name', 'Today\'s Focus', 'Remarks'];
+    const rows = statuses.map(s => [s.date, s.resource, s.focus, s.remarks || '']);
+    downloadCSV(`Daily_Status_${todayStr}.csv`, headers, rows);
+  };
 
   const loadData = async () => {
     const statusData = await teamStatusService.getAll();
@@ -156,9 +174,25 @@ export const DailyStatus: React.FC<DailyStatusProps> = ({ canWrite = true }) => 
             Report and track daily sprint tasks, blockers, and resource counts.
           </p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-xl border border-white/5 font-mono text-xs">
-          <span className="text-on-surface-variant/60">DATE:</span>
-          <span className="text-primary font-bold">{todayStr}</span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button 
+            onClick={handleCopySlackReport}
+            className="px-4 py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl flex items-center gap-2 hover:bg-emerald-500/30 transition-all text-xs font-bold shadow-md cursor-pointer active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[18px]">content_copy</span>
+            <span>{copyFeedback || 'Copy Daily Digest'}</span>
+          </button>
+          <button 
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white/5 text-on-surface border border-white/10 rounded-xl flex items-center gap-2 hover:bg-white/10 transition-all text-xs font-semibold cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span>Export CSV</span>
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-xl border border-white/5 font-mono text-xs">
+            <span className="text-on-surface-variant/60">DATE:</span>
+            <span className="text-primary font-bold">{todayStr}</span>
+          </div>
         </div>
       </div>
 
