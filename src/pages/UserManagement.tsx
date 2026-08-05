@@ -2,6 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { authService } from '../services/authService';
 import type { User, PagePermissions } from '../services/mockData';
 
+const formatUserHandle = (user: User): string => {
+  if (user.email && user.email.endsWith('@opsportal.com')) {
+    const handle = user.email.replace('@opsportal.com', '');
+    return `@${handle}`;
+  }
+  if (user.email && user.email.includes('@')) {
+    return user.email;
+  }
+  return `@${user.id}`;
+};
+
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [editingPermissionsUser, setEditingPermissionsUser] = useState<User | null>(null);
@@ -112,7 +123,7 @@ export const UserManagement: React.FC = () => {
                     <span>{pUser.name}</span>
                     <span className="bg-amber-500/20 text-amber-400 font-mono text-[9px] px-2 py-0.5 rounded uppercase">Pending</span>
                   </div>
-                  <div className="text-[11px] font-mono text-on-surface-variant/70">{pUser.email}</div>
+                  <div className="text-[11px] font-mono text-on-surface-variant/70">{formatUserHandle(pUser)}</div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -168,7 +179,7 @@ export const UserManagement: React.FC = () => {
                   <tr key={u.id} className="hover:bg-white/5 transition-colors">
                     <td className="p-3.5 font-body">
                       <div className="font-bold text-on-surface text-xs">{u.name}</div>
-                      <div className="text-[10px] text-on-surface-variant/70 font-mono">{u.email}</div>
+                      <div className="text-[10px] text-on-surface-variant/70 font-mono">{formatUserHandle(u)}</div>
                     </td>
                     <td className="p-3.5">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
